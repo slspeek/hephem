@@ -57,14 +57,15 @@ executable hephem
   -- other-modules:       
   
   -- LANGUAGE extensions used by modules in this package.
-  -- other-extensions:    
+  other-extensions:    TemplateHaskell
   
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.6 && <4.7
+  build-depends:       base >=4.6 
                        ,time >= 1.5.0.1
+                      ,file-embed >= 0.0.9
 
-  
-  -- Directories containing source files.
+		
+		-- Directories containing source files.
   -- hs-source-dirs:      
   
   -- Base language which the package is written in.

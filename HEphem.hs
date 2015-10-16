@@ -1,9 +1,11 @@
+{-# LANGUAGE TemplateHaskell #-}											 
 module Main where
 
 {-module BrightStar where -}
-
-import Text.ParserCombinators.ReadP
-import Data.Char
+import           Text.ParserCombinators.ReadP
+import           Data.Char
+import Data.String
+import Data.FileEmbed
 
 {-Bright Star List for Epoch =2015.5-}
 {-------------------------------------------------------------------------------------------------------}
@@ -11,127 +13,148 @@ import Data.Char
 {-Designation         |No.   |          |           |        |    |      |     |-}
 {-------------------------------------------------------------------------------------------------------}
 {----}
+brightstartext :: IsString a => a
+brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
+
+brightstarlist :: [BrightStar]
+brightstarlist = 
+  let starlines = (drop 5 . lines) brightstartext
+  in map (fst . last . readP_to_S star) starlines
+
 perseus = "33   alpha    Per  1017   3 25 26.2   +49 54 54   das     1.79 +0.37 +0.48 F5 Ib"
 
-decl ="   +49 54 54"  
+decl = "   +49 54 54"
 
-
-data BrightStar = BrightStar {
-										bName::String,
-										bHRNo::Int,
-										bRA::RA,
-										bDec::Dec,
-										bNotes::String,
-										bMagitude::Float,
-										bUminB::Maybe Float,
-										bBminV::Float,
-										bSpectralType::String
-									} deriving Show
+data BrightStar =
+       BrightStar
+         { bName :: String
+         , bHRNo :: Int
+         , bRA :: RA
+         , bDec :: Dec
+         , bNotes :: String
+         , bMagitude :: Float
+         , bUminB :: Maybe Float
+         , bBminV :: Float
+         , bSpectralType :: String
+         }
+  deriving Show
 
 star :: ReadP BrightStar
-star = do	
-				name <- readName
-				hr <- readHRNo
-				ra <- readRA
-				dec <- readDec
-				notes <- readNotes
-				mag <- readMagnitude
-				uminB <- readUminB
-				bminV <- readBminV
-				spec <- readSpectralType
+star = do
+  name <- readName
+  hr <- readHRNo
+  ra <- readRA
+  dec <- readDec
+  notes <- readNotes
+  mag <- readMagnitude
+  uminB <- readUminB
+  bminV <- readBminV
+  spec <- readSpectralType
 
-				return BrightStar {
-							bName = name,
-						  bHRNo = hr,
-							bRA = ra,
-							bDec = dec,
-							bNotes = notes,
-							bMagitude = mag,
-							bUminB = uminB,
-							bBminV = bminV,
-							bSpectralType = spec 
-						}	
+  return
+    BrightStar
+      { bName = name
+      , bHRNo = hr
+      , bRA = ra
+      , bDec = dec
+      , bNotes = notes
+      , bMagitude = mag
+      , bUminB = uminB
+      , bBminV = bminV
+      , bSpectralType = spec
+      }
+
+nget :: Int -> ReadP String
+nget n = count n get
 
 readName :: ReadP String
-readName = count 19 get
-	
+readName = nget 19
+
 readHRNo :: ReadP Int
-readHRNo = do 
-						s <- count 6 get
-						return $  read s
+readHRNo = do
+  s <- nget 6
+  return $ read s
 
 readRA :: ReadP RA
-readRA = do 
-					h <- count 4 get
-					let hi 	= read h
-					m <- count 3 get
-					let mi = read m
-					s <- count 5 get 
-					let sf = read s
-					return $ RA hi mi sf
+readRA = do
+  h <- nget 4
+  let hi = read h
+  m <- nget 3
+  let mi = read m
+  s <- nget 5
+  let sf = read s
+  return $ RA hi mi sf
 
-
-replace = map (\c -> if c=='+' then ' '; else c)
+replace = map
+            (\c -> if c == '+'
+                     then ' '
+                     else c)
 
 readDec :: ReadP Dec
-readDec = do 
-					h <- count 6 get
-					let h' = replace h
-					let hi 	= read h'
-					m <- count 3 get
-					let mi = read m
-					s <- count 3 get 
-					let sf = read s
-					return $ Dec hi mi sf
+readDec = do
+  h <- nget 6
+  let h' = replace h
+  let hi = read h'
+  m <- nget 3
+  let mi = read m
+  s <- nget 3
+  let sf = read s
+  return $ Dec hi mi sf
 
 readNotes :: ReadP String
-readNotes =  count 9 get
+readNotes = nget 9
 
 readMagnitude :: ReadP Float
-readMagnitude = do 
-								m <- count 6 get
-								return $ read m
+readMagnitude = do
+  m <- nget 6
+  return $ read m
 
 readUminB :: ReadP (Maybe Float)
-readUminB = do 
-								m <- count 6 get
-								if m == "      " then
-										return Nothing
-								else
-										return $ Just ( read (replace m))
+readUminB = do
+  m <- nget 6
+  if m == "      "
+    then return Nothing
+    else return $ Just (read (replace m))
 
 readBminV :: ReadP Float
-readBminV = do 
-								m <- count 5 get
-								return $ read (replace m)
+readBminV = do
+  m <- nget 5
+  return $ read (replace m)
 
 readSpectralType :: ReadP String
 readSpectralType = many1 get
 
-main = print (readP_to_S star perseus)
+main = do
+  ls <- fmap (drop 5 . lines) (readFile "brightstar_2015/brightstar_2015.txt")
+  let lshort = ls
+  print $ map (fst . last . readP_to_S star) lshort
 
 class HasAngle a where
-		angle :: a -> Double
-		
+  angle :: a -> Double
 
-data Equatorial = Equatorial RA Dec deriving (Eq, Show)
+data Equatorial = Equatorial RA Dec
+  deriving (Eq, Show)
 
-data RA = RA Int Int Double deriving (Eq, Show)
+data RA = RA Int Int Double
+  deriving (Eq, Show)
 
 instance HasAngle RA where
-		angle  (RA h m s) = (((fromIntegral h * 15.0) + ((fromIntegral m /60.0) + (s/3600.0)))/180 ) * pi
+  angle (RA h m s) = (((fromIntegral h * 15.0) + ((fromIntegral m / 60.0) + (s / 3600.0))) / 180) * pi
 
-data Dec = Dec Int Int Double deriving (Eq, Show)
+data Dec = Dec Int Int Double
+  deriving (Eq, Show)
 
 instance HasAngle Dec where
-		angle  (Dec d m s) = ((fromIntegral d + ((fromIntegral m /60.0) + (s/3600.0)))/180 ) * pi
+  angle (Dec d m s) = ((fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))) / 180) * pi
 
+data Horizontal = Horizontal Azimuth Ascent
+  deriving (Eq, Show)
 
-data Horizontal = Horizontal Azimuth Ascent deriving (Eq, Show)
+data Azimuth = Azimuth Double
+  deriving (Eq, Show)
 
-data Azimuth = Azimuth Double deriving (Eq, Show)
-
-data Ascent = Ascent Double deriving (Eq, Show)
+data Ascent = Ascent Double
+  deriving (Eq, Show)
 
 rigel :: Equatorial
 rigel = Equatorial (RA 5 14 32.3) (Dec (-8) 12 5.9)
@@ -143,14 +166,9 @@ deneb :: Equatorial
 deneb = Equatorial (RA 20 41 25.9) (Dec 45 16 49.5)
 
 rA :: Equatorial -> Double
-rA (Equatorial ra _) =  angle ra
+rA (Equatorial ra _) = angle ra
 
 dec :: Equatorial -> Double
-dec (Equatorial _ d) = angle d
-
-{-main :: IO ()-}
-{-main = do -}
-				{-putStrLn "HEphem is free software."-}
-				{-putStrLn $ "Rigel is at equatorial position " ++ show rigel-}
-				{-putStrLn $ "Rigels RA is  " ++ show (  rA rigel ) ++ " and declination is " ++ show ( dec rigel) -}
-				{-putStrLn "Done. Thank you."-}
+dec (Equatorial _ d) = angle d{-main :: IO ()-}
+                              {-main = do -}
+                                {-putStrLn "HEphem is free software."-}  {-putStrLn $ "Rigel is at equatorial position " ++ show rigel-}  {-putStrLn $ "Rigels RA is  " ++ show (  rA rigel ) ++ " and declination is " ++ show ( dec rigel) -}  {-putStrLn "Done. Thank you."-}
