@@ -1,18 +1,10 @@
-{-# LANGUAGE TemplateHaskell #-}											 
-module Main where
+{-# LANGUAGE TemplateHaskell #-}
+module HEphem.HEphem where
 
-{-module BrightStar where -}
 import           Text.ParserCombinators.ReadP
-import           Data.Char
 import Data.String
 import Data.FileEmbed
 
-{-Bright Star List for Epoch =2015.5-}
-{-------------------------------------------------------------------------------------------------------}
-{-Flamsteed/Bayer     |BS=HR | RA       |  Dec      |Notes   | V  |  U-B | B-V |Spectral Type-}
-{-Designation         |No.   |          |           |        |    |      |     |-}
-{-------------------------------------------------------------------------------------------------------}
-{----}
 brightstartext :: IsString a => a
 brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
 
@@ -21,9 +13,6 @@ brightstarlist =
   let starlines = (drop 5 . lines) brightstartext
   in map (fst . last . readP_to_S star) starlines
 
-perseus = "33   alpha    Per  1017   3 25 26.2   +49 54 54   das     1.79 +0.37 +0.48 F5 Ib"
-
-decl = "   +49 54 54"
 
 data BrightStar =
        BrightStar
@@ -44,7 +33,7 @@ star = do
   name <- readName
   hr <- readHRNo
   ra <- readRA
-  dec <- readDec
+  d <- readDec
   notes <- readNotes
   mag <- readMagnitude
   uminB <- readUminB
@@ -56,7 +45,7 @@ star = do
       { bName = name
       , bHRNo = hr
       , bRA = ra
-      , bDec = dec
+      , bDec = d
       , bNotes = notes
       , bMagitude = mag
       , bUminB = uminB
@@ -85,6 +74,7 @@ readRA = do
   let sf = read s
   return $ RA hi mi sf
 
+replace:: String -> String
 replace = map
             (\c -> if c == '+'
                      then ' '
@@ -124,6 +114,7 @@ readBminV = do
 readSpectralType :: ReadP String
 readSpectralType = many1 get
 
+main:: IO ()
 main = do
   ls <- fmap (drop 5 . lines) (readFile "brightstar_2015/brightstar_2015.txt")
   let lshort = ls
@@ -169,6 +160,5 @@ rA :: Equatorial -> Double
 rA (Equatorial ra _) = angle ra
 
 dec :: Equatorial -> Double
-dec (Equatorial _ d) = angle d{-main :: IO ()-}
-                              {-main = do -}
-                                {-putStrLn "HEphem is free software."-}  {-putStrLn $ "Rigel is at equatorial position " ++ show rigel-}  {-putStrLn $ "Rigels RA is  " ++ show (  rA rigel ) ++ " and declination is " ++ show ( dec rigel) -}  {-putStrLn "Done. Thank you."-}
+dec (Equatorial _ d) = angle d
+
