@@ -21,9 +21,9 @@ data BrightStar =
          , bRA :: RA
          , bDec :: Dec
          , bNotes :: String
-         , bMagitude :: Float
-         , bUminB :: Maybe Float
-         , bBminV :: Float
+         , bMagitude :: Double
+         , bUminB :: Maybe Double
+         , bBminV :: Double
          , bSpectralType :: String
          }
   deriving Show
@@ -94,34 +94,37 @@ readDec = do
 readNotes :: ReadP String
 readNotes = nget 9
 
-readMagnitude :: ReadP Float
+readMagnitude :: ReadP Double
 readMagnitude = do
   m <- nget 6
   return $ read m
 
-readUminB :: ReadP (Maybe Float)
+readUminB :: ReadP (Maybe Double)
 readUminB = do
   m <- nget 6
   if m == "      "
     then return Nothing
-    else return $ Just (read (replace m))
+    else return . Just . read $ replace m
 
-readBminV :: ReadP Float
+readBminV :: ReadP Double
 readBminV = do
-  m <- nget 5
-  return $ read (replace m)
+  m <- nget 6
+  return . read $ replace m
 
 readSpectralType :: ReadP String
 readSpectralType = many1 get
 
-main:: IO ()
-main = do
-  ls <- fmap (drop 5 . lines) (readFile "brightstar_2015/brightstar_2015.txt")
-  let lshort = ls
-  print $ map (fst . last . readP_to_S star) lshort
-
 class HasAngle a where
   angle :: a -> Double
+
+data GeoLocation = GeoLocation Latitude Longtitude
+  deriving (Eq, Show)
+
+data Latitude = Latitude Int Int Double
+  deriving (Eq, Show)
+
+data Longtitude = Longtitude Int Int Double
+  deriving (Eq, Show)
 
 data Equatorial = Equatorial RA Dec
   deriving (Eq, Show)

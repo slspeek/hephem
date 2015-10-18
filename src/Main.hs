@@ -1,3 +1,7 @@
 module Main where
 
-main = print "Hello"
+import HEphem.HEphem
+
+main:: IO ()
+main = print $ filter (\x -> bMagitude x < 1) brightstarlist
+

@@ -10,7 +10,7 @@ name:                hephem
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.1.1.0
+version:             0.1.2.0
 
 -- A short (one-line) description of the package.
 synopsis:            Learning project calculating star positions
@@ -72,7 +72,8 @@ executable hephem
   -- other-modules:       
   
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.6 && <5
+  build-depends:       base >=4.6 && <5,
+                     file-embed >= 0.0.9
 		
 	-- Directories containing source files.
   hs-source-dirs:     src 

@@ -16,9 +16,9 @@ tests =
   [
     testGroup "HEphem tests"
     [
-      testProperty "" simpleTest
-     ,testProperty "parse alpha Perseus" testParseAlfaPerseus
-     ,testProperty "parse a declination" testParseDeclination
+     testGroup "declination" $  hUnitTestToTests   testParseDeclination
+     ,testGroup "brightstar list count" $  hUnitTestToTests   testBrightStarList
+     ,testGroup "parse alpha Perseus" $ hUnitTestToTests testParseAlfaPerseus
     ]
   ]
 
