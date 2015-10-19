@@ -4,6 +4,8 @@ import           HEphem.HEphem
 import           Text.ParserCombinators.ReadP
 import           Test.HUnit
 import           Data.Maybe
+import           Data.Time.Calendar
+import           Data.Time.Clock
 
 class AEq a where
   (=~) :: a -> a -> Bool
@@ -19,11 +21,13 @@ instance AEq Double where
 perseus :: String
 perseus = "  33   alpha    Per  1017   3 25 26.2   +49 54 54   das     1.79 +0.37 +0.48 F5 Ib"
 
-decl :: String
-decl = "   +49 54 54"
+decl ::  String
+decl = "  +49 54 54"
+
+longAms = Longitude 4 51 59
 
 testBrightStarList :: Test 
-testBrightStarList = TestCase(length brightstarlist @?= 1463)
+testBrightStarList = TestCase(length ( filter (\x -> bSpectralType x == " ") brightstarlist) @?= 0)
 
 testParseAlfaPerseus :: Test
 testParseAlfaPerseus = TestCase (let
@@ -44,3 +48,12 @@ testParseDeclination = TestCase (let(Dec d m s) = (fst . last) $ readP_to_S read
                         54 @=~? s 
                        )
 
+testSiderealtime :: Test
+testSiderealtime = TestCase ( toMinutesSeconds (siderealtime utc)  @?= (1,48,36))
+  where
+    utc = UTCTime{utctDay=fromGregorian 2015 10 19, utctDayTime=secondsToDiffTime 0}
+
+testSiderealtime' :: Test
+testSiderealtime' = TestCase ( toMinutesSeconds (siderealtime utc)  @?= (0,37,38))
+  where
+    utc = UTCTime{utctDay=fromGregorian 2015 10 1, utctDayTime=secondsToDiffTime 0}
