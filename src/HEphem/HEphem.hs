@@ -128,20 +128,32 @@ readBminV = do
 readSpectralType :: ReadP String
 readSpectralType = many1 get
 
+bEquatorial :: BrightStar -> Equatorial
+bEquatorial b = Equatorial (bRA b) (bDec b)
+
 class HasAngle a where
   angle :: a -> Double
 
 torad :: Int -> Int -> Double -> Double
-torad d m s = (todeg d m s / 180) * pi
+torad d m s = deg2rad $ todec d m s 
 
-todeg :: Int -> Int ->Double -> Double
-todeg d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
+deg2rad :: Double -> Double
+deg2rad d = pi/180 * d
+
+rad2deg :: Double -> Double
+rad2deg r = 180/pi * r
+
+todec :: Int -> Int ->Double -> Double
+todec d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
 
 data GeoLocation = GeoLocation Latitude Longitude
   deriving (Eq, Show)
 
 data Latitude = Latitude Int Int Double
   deriving (Eq, Show)
+
+instance HasAngle Latitude where
+  angle (Latitude d m s) = torad d m s
 
 data Longitude = Longitude Int Int Double
   deriving (Eq, Show)
@@ -155,7 +167,7 @@ data RA = RA Int Int Double
   deriving (Eq, Show)
 
 instance HasAngle RA where
-  angle (RA h m s) = torad (15 * h) m s
+  angle (RA h m s) = deg2rad (15 * todec h m s)
 
 data Dec = Dec Int Int Double
   deriving (Eq, Show)
@@ -163,13 +175,13 @@ data Dec = Dec Int Int Double
 instance HasAngle Dec where
   angle (Dec d m s) = torad d m s
 
-data Horizontal = Horizontal Azimuth Ascent
+data Horizontal = Horizontal Azimuth Altitude
   deriving (Eq, Show)
 
 data Azimuth = Azimuth Double
   deriving (Eq, Show)
 
-data Ascent = Ascent Double
+data Altitude = Altitude Double
   deriving (Eq, Show)
 
 rA :: Equatorial -> Double
@@ -207,6 +219,25 @@ toMinutesSeconds d = (i, m, s)
     s = r' `div'` (1/3600) ;
 
 localSiderealtime :: Longitude -> UTCTime -> Double
-localSiderealtime (Longitude d m s)  utc = (siderealtime utc + todeg d m s  / 15) `mod'` 24
+localSiderealtime (Longitude d m s)  utc = (siderealtime utc + todec d m s  / 15) `mod'` 24
 
+toHorizontalCoord :: Double -> Latitude -> Equatorial -> Horizontal
+toHorizontalCoord lst fi (Equatorial ra d) = Horizontal (Azimuth az) (Altitude a)
+  where
+    lstr = deg2rad $ 15.0 * lst  
+    lha = lstr - angle ra
+    dr = angle d
+    fir = angle fi
+    ar = asin $ sin dr * sin fir + cos dr * cos fir * cos lha
+    azy = -  sin lha * cos dr / cos ar
+    azx =  (sin dr - sin fir * sin ar)/(cos fir * cos ar)
+    azr' = asin $ azy 
+    azr = acos $ azx
+    azrf = if azy >= 0 then (if azx >= 0 then azr' else azr ) else (if azx >= 0 then (2*pi - azr) else azr')
+    a = rad2deg ar 
+    az = rad2deg azrf 
 
+horizontal :: GeoLocation ->  UTCTime -> BrightStar -> Horizontal
+horizontal (GeoLocation lat long) utc b = toHorizontalCoord lst lat (bEquatorial b)
+  where
+    lst = localSiderealtime long utc
