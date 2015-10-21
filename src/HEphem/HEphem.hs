@@ -221,6 +221,12 @@ toMinutesSeconds d = (i, m, s)
 localSiderealtime :: Longitude -> UTCTime -> Double
 localSiderealtime (Longitude d m s)  utc = (siderealtime utc + todec d m s  / 15) `mod'` 24
 
+{--| Given cos A and sin A solve A --}
+solveAngle:: Double -> Double -> Double
+solveAngle c s | s > 0 = acos c
+               | c > 0 = 2 * pi + asin s
+               | otherwise = 2 * pi - acos c
+
 toHorizontalCoord :: Double -> Latitude -> Equatorial -> Horizontal
 toHorizontalCoord lst fi (Equatorial ra d) = Horizontal (Azimuth az) (Altitude a)
   where
@@ -231,11 +237,9 @@ toHorizontalCoord lst fi (Equatorial ra d) = Horizontal (Azimuth az) (Altitude a
     ar = asin $ sin dr * sin fir + cos dr * cos fir * cos lha
     azy = -  sin lha * cos dr / cos ar
     azx =  (sin dr - sin fir * sin ar)/(cos fir * cos ar)
-    azr' = asin $ azy 
-    azr = acos $ azx
-    azrf = if azy >= 0 then (if azx >= 0 then azr' else azr ) else (if azx >= 0 then (2*pi - azr) else azr')
+    azr = solveAngle azx azy
     a = rad2deg ar 
-    az = rad2deg azrf 
+    az = rad2deg azr 
 
 horizontal :: GeoLocation ->  UTCTime -> BrightStar -> Horizontal
 horizontal (GeoLocation lat long) utc b = toHorizontalCoord lst lat (bEquatorial b)

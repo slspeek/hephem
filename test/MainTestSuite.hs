@@ -22,8 +22,8 @@ tests =
      ,testGroup "sidereal time" $ hUnitTestToTests testSiderealtime
      ,testGroup "sidereal time 2" $ hUnitTestToTests testSiderealtime'
      ,testGroup "RA angle" $ hUnitTestToTests testRAAngle
+     ,testGroup "solve angle" $ hUnitTestToTests testSolveAngle
      ,testGroup "coord conversion" $ hUnitTestToTests testToHorizontal
-     ,testGroup "coord conversion on north pole" $ hUnitTestToTests testToHorizontalCoordPole
     ]
   ]
 
