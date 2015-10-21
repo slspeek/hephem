@@ -241,7 +241,28 @@ toHorizontalCoord lst fi (Equatorial ra d) = Horizontal (Azimuth az) (Altitude a
     a = rad2deg ar 
     az = rad2deg azr 
 
-horizontal :: GeoLocation ->  UTCTime -> BrightStar -> Horizontal
-horizontal (GeoLocation lat long) utc b = toHorizontalCoord lst lat (bEquatorial b)
+horizontal :: GeoLocation ->  UTCTime -> BrightStar -> (BrightStar, Horizontal)
+horizontal (GeoLocation lat long) utc b = (b, toHorizontalCoord lst lat (bEquatorial b))
   where
     lst = localSiderealtime long utc
+
+data Rectangle = Rectangle Azimuth Azimuth Altitude Altitude
+
+
+
+visibleIn :: GeoLocation -> Rectangle -> IO [(BrightStar, Horizontal)]
+visibleIn geo (Rectangle (Azimuth minAz) (Azimuth  maxAz) (Altitude minAl) (Altitude maxAl)) = 
+  do 
+    t <- getCurrentTime;
+    let f =  horizontal geo t 
+    return $ filter p  (map f brightstarlist)
+  where
+    p (_, Horizontal (Azimuth a) (Altitude h)) = (minAz <= a) && (maxAz >= a) && (minAl <= h) && (maxAl >= h)
+    
+pretty :: (BrightStar, Horizontal) -> String
+pretty (b, Horizontal (Azimuth a) (Altitude h) ) = bName b ++ " " ++ show (bMagitude b) ++ " Azi: " ++ show d++"*"++show m++"\""++show s++"'"++ " Alt: " ++
+                                                                                                      show d'++"*"++show m'++"\""++show s' ++"'"
+  where
+    (d,m,s) = toMinutesSeconds a
+    (d',m',s') = toMinutesSeconds h
+

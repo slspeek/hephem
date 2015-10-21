@@ -83,7 +83,7 @@ testSiderealtime' = TestCase (toMinutesSeconds (siderealtime utc) @?= (0, 37, 38
     utc = UTCTime { utctDay = fromGregorian 2015 10 1, utctDayTime = secondsToDiffTime 0 }
 
 testToHorizontalCoord :: BrightStar -> UTCTime -> Horizontal -> Test
-testToHorizontalCoord bstar utc hor = TestCase (horizontal geoAms utc bstar @=~? hor)
+testToHorizontalCoord bstar utc hor = TestCase (snd ( horizontal geoAms utc bstar) @=~? hor)
     
 testSolveAngle :: Test
 testSolveAngle = TestList [ TestCase (solveAngle c s @=~? a)| (c,s,a) <- [(b,b,qp), (-b,b, pi-qp), (-b,-b,pi+qp),(b, -b, 2*pi - qp)]] 
