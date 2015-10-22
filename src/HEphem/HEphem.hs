@@ -8,6 +8,9 @@ import           Data.FileEmbed
 import           Data.Time.Clock
 import           Data.Time.Calendar
 import           Data.Fixed (mod', div')
+import           Data.Vector.V3
+import           Data.Vector.Class
+import           Graphics.Gloss.Data.Point
 
 brightstartext :: IsString a => a
 brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
@@ -29,7 +32,7 @@ data BrightStar =
          , bBminV :: Double
          , bSpectralType :: String
          }
-  deriving Show
+  deriving (Eq,Show)
 
 star :: ReadP BrightStar
 star = do
@@ -181,8 +184,14 @@ data Horizontal = Horizontal Azimuth Altitude
 data Azimuth = Azimuth Double
   deriving (Eq, Show)
 
+instance HasAngle Azimuth where
+    angle (Azimuth az) = deg2rad az
+
 data Altitude = Altitude Double
   deriving (Eq, Show)
+
+instance HasAngle Altitude where
+    angle (Altitude h) = deg2rad h
 
 rA :: Equatorial -> Double
 rA (Equatorial ra _) = angle ra
@@ -266,3 +275,40 @@ pretty (b, Horizontal (Azimuth a) (Altitude h) ) = bName b ++ " " ++ show (bMagi
     (d,m,s) = toMinutesSeconds a
     (d',m',s') = toMinutesSeconds h
 
+{-- For graphical representation --}
+data World = World [BrightStar] Screen
+  deriving (Eq, Show)
+
+{-- Viewing screen has a direction and distance --}
+data Screen = Screen Horizontal Double
+  deriving (Eq, Show)
+
+
+cartesian :: Horizontal -> Vector3
+cartesian (Horizontal az al) = Vector3{v3x = sin incl * cos (angle az),
+                                       v3y = sin incl  * sin (angle az),
+                                       v3z = cos incl}
+  where incl = (pi/2) - angle al
+
+screenCoord:: Screen -> Horizontal -> Maybe Point
+screenCoord (Screen wdir dist) hor = undefined 
+  where
+    
+relativeCoord ::Screen -> Vector3 -> Maybe Point
+relativeCoord scr v = undefined
+
+grid :: Screen -> (Vector3, Vector3)
+grid (Screen wdir dist) = undefined
+
+screenIntersect:: Screen -> Horizontal -> Maybe Vector3
+screenIntersect (Screen vdir dist) hor = if not (ln ==  0) 
+                                            then Just (( p0 `vdot` snv)/ ln *| lv)
+                                            else Nothing
+  where 
+    {-- screen normal vector --}
+    snv = cartesian vdir
+    lv = cartesian hor
+    p0 = vnormalise snv |* dist
+    ln = lv `vdot` snv 
+    
+    

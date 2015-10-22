@@ -63,6 +63,8 @@ library
       base    == 4.*
       ,file-embed >= 0.0.9
       ,time >= 1.5.0.1
+      ,gloss >= 1.9.4.1
+      ,AC-Vector == 2.3.2
   default-language:    Haskell2010
 
 executable hephem
@@ -76,6 +78,8 @@ executable hephem
   build-depends:       base >=4.6 && <5,
                      file-embed >= 0.0.9
                      ,time >= 1.5.0.1
+                    ,gloss >= 1.9.4.1
+                    ,AC-Vector == 2.3.2
 		
 	-- Directories containing source files.
   hs-source-dirs:     src 
@@ -89,9 +93,11 @@ test-suite hephem-tests
   main-is:           MainTestSuite.hs
   build-depends:     base,
                      file-embed >= 0.0.9,
+                     AC-Vector == 2.3.2,
                      time >= 1.5.0.1,
                      HUnit,
                      QuickCheck,
                      test-framework,
                      test-framework-hunit,
                      test-framework-quickcheck2
+  default-language:    Haskell2010
