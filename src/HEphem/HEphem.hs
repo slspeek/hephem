@@ -11,6 +11,8 @@ import           Data.Fixed (mod', div')
 import           Data.Vector.V3
 import           Data.Vector.Class
 import           Graphics.Gloss.Data.Point
+import           Data.Maybe
+import           GHC.Float
 
 brightstartext :: IsString a => a
 brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
@@ -32,7 +34,7 @@ data BrightStar =
          , bBminV :: Double
          , bSpectralType :: String
          }
-  deriving (Eq,Show)
+  deriving (Eq, Show)
 
 star :: ReadP BrightStar
 star = do
@@ -138,16 +140,42 @@ class HasAngle a where
   angle :: a -> Double
 
 torad :: Int -> Int -> Double -> Double
-torad d m s = deg2rad $ todec d m s 
+torad d m s = deg2rad $ todec d m s
 
 deg2rad :: Double -> Double
-deg2rad d = pi/180 * d
+deg2rad d = pi / 180 * d
 
 rad2deg :: Double -> Double
-rad2deg r = 180/pi * r
+rad2deg r = 180 / pi * r
 
-todec :: Int -> Int ->Double -> Double
+todec :: Int -> Int -> Double -> Double
 todec d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
+
+class AEq a where
+  (=~) :: a -> a -> Bool
+
+instance AEq Double where
+  x =~ y = abs (x - y) < (1.0e-8 :: Double)
+
+instance AEq Horizontal where
+  x =~ y = abs (xaz - yaz) < d && abs (xa - ya) < d
+    where
+      Horizontal (Azimuth xaz) (Altitude xa) = x
+      Horizontal (Azimuth yaz) (Altitude ya) = y
+      d = 0.1 :: Double
+
+instance AEq Vector3 where
+  v =~ w = abs (v3x v - v3x w) < d &&
+           abs (v3y v - v3y w) < d &&
+           abs (v3z v - v3z w) < d
+    where
+      d = 1.0e-8 :: Double
+
+instance AEq Float where
+  x =~ y = abs (x - y) < (1.0e-4 :: Float)
+
+{-instance AEq (Vector3, Vector3) where-}
+{-v =~ w = fst v =~ fst w && snd v =~ snvd w-}
 
 data GeoLocation = GeoLocation Latitude Longitude
   deriving (Eq, Show)
@@ -160,8 +188,6 @@ instance HasAngle Latitude where
 
 data Longitude = Longitude Int Int Double
   deriving (Eq, Show)
-
-
 
 data Equatorial = Equatorial RA Dec
   deriving (Eq, Show)
@@ -185,13 +211,13 @@ data Azimuth = Azimuth Double
   deriving (Eq, Show)
 
 instance HasAngle Azimuth where
-    angle (Azimuth az) = deg2rad az
+  angle (Azimuth az) = deg2rad az
 
 data Altitude = Altitude Double
   deriving (Eq, Show)
 
 instance HasAngle Altitude where
-    angle (Altitude h) = deg2rad h
+  angle (Altitude h) = deg2rad h
 
 rA :: Equatorial -> Double
 rA (Equatorial ra _) = angle ra
@@ -203,77 +229,96 @@ fracDays :: UTCTime -> Double
 fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
                                                                    (toRational (utctDayTime u)) / 86400)
 
-
-
 siderealtime :: UTCTime -> Double
 siderealtime utc = (18.697374558 + 24.06570982441908 * d) `mod'` 24
   where
-    {-- need the 0.5 to get from modified julian date to reduced julian date --}
-    d = fracDays utc - fromIntegral time20000101 - 0.5;
+    d
+    {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays utc -
+                                                                                   fromIntegral
+                                                                                     time20000101 -
+                                                                                   0.5
     time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
 
 currentSiderealtime :: IO Double
 currentSiderealtime = siderealtime <$> getCurrentTime
 
 currentLocalSiderealtime :: Longitude -> IO Double
-currentLocalSiderealtime l = localSiderealtime l<$> getCurrentTime
+currentLocalSiderealtime l = localSiderealtime l <$> getCurrentTime
 
 toMinutesSeconds :: Double -> (Int, Int, Int)
 toMinutesSeconds d = (i, m, s)
   where
-    i = floor d;
-    r = d - fromIntegral i;
-    m = r `div'` (1/60);
-    r' = r - fromIntegral m * (1/60);
-    s = r' `div'` (1/3600) ;
+    i = floor d
+    r = d - fromIntegral i
+    m = r `div'` (1 / 60)
+    r' = r - fromIntegral m * (1 / 60)
+    s = r' `div'` (1 / 3600)
 
 localSiderealtime :: Longitude -> UTCTime -> Double
-localSiderealtime (Longitude d m s)  utc = (siderealtime utc + todec d m s  / 15) `mod'` 24
+localSiderealtime (Longitude d m s) utc = (siderealtime utc + todec d m s / 15) `mod'` 24
 
 {--| Given cos A and sin A solve A --}
-solveAngle:: Double -> Double -> Double
-solveAngle c s | s > 0 = acos c
-               | c > 0 = 2 * pi + asin s
-               | otherwise = 2 * pi - acos c
+solveAngle :: Double -> Double -> Double
+solveAngle c s
+  | s > 0 = acos c
+  | c > 0 = 2 * pi + asin s
+  | otherwise = 2 * pi - acos c
 
 toHorizontalCoord :: Double -> Latitude -> Equatorial -> Horizontal
 toHorizontalCoord lst fi (Equatorial ra d) = Horizontal (Azimuth az) (Altitude a)
   where
-    lstr = deg2rad $ 15.0 * lst  
+    lstr = deg2rad $ 15.0 * lst
     lha = lstr - angle ra
     dr = angle d
     fir = angle fi
     ar = asin $ sin dr * sin fir + cos dr * cos fir * cos lha
-    azy = -  sin lha * cos dr / cos ar
-    azx =  (sin dr - sin fir * sin ar)/(cos fir * cos ar)
+    azy = -sin lha * cos dr / cos ar
+    azx = (sin dr - sin fir * sin ar) / (cos fir * cos ar)
     azr = solveAngle azx azy
-    a = rad2deg ar 
-    az = rad2deg azr 
+    a = rad2deg ar
+    az = rad2deg azr
 
-horizontal :: GeoLocation ->  UTCTime -> BrightStar -> (BrightStar, Horizontal)
+horizontal :: GeoLocation -> UTCTime -> BrightStar -> (BrightStar, Horizontal)
 horizontal (GeoLocation lat long) utc b = (b, toHorizontalCoord lst lat (bEquatorial b))
   where
     lst = localSiderealtime long utc
 
 data Rectangle = Rectangle Azimuth Azimuth Altitude Altitude
 
-
-
 visibleIn :: GeoLocation -> Rectangle -> IO [(BrightStar, Horizontal)]
-visibleIn geo (Rectangle (Azimuth minAz) (Azimuth  maxAz) (Altitude minAl) (Altitude maxAl)) = 
-  do 
-    t <- getCurrentTime;
-    let f =  horizontal geo t 
-    return $ filter p  (map f brightstarlist)
+visibleIn geo (Rectangle (Azimuth minAz) (Azimuth maxAz) (Altitude minAl) (Altitude maxAl)) =
+  do
+    t <- getCurrentTime
+    let f = horizontal geo t
+    return $ filter p (map f brightstarlist)
+
   where
-    p (_, Horizontal (Azimuth a) (Altitude h)) = (minAz <= a) && (maxAz >= a) && (minAl <= h) && (maxAl >= h)
-    
+    p (_, Horizontal (Azimuth a) (Altitude h)) = (minAz <= a) &&
+                                                 (maxAz >= a) &&
+                                                 (minAl <= h) &&
+                                                 (maxAl >= h)
+
 pretty :: (BrightStar, Horizontal) -> String
-pretty (b, Horizontal (Azimuth a) (Altitude h) ) = bName b ++ " " ++ show (bMagitude b) ++ " Azi: " ++ show d++"*"++show m++"\""++show s++"'"++ " Alt: " ++
-                                                                                                      show d'++"*"++show m'++"\""++show s' ++"'"
+pretty (b, Horizontal (Azimuth a) (Altitude h)) = bName b ++
+                                                  " " ++
+                                                  show (bMagitude b) ++
+                                                  " Azi: " ++
+                                                  show d ++
+                                                  "*" ++
+                                                  show m ++
+                                                  "\"" ++
+                                                  show s ++
+                                                  "'" ++
+                                                  " Alt: " ++
+                                                  show d' ++
+                                                  "*" ++
+                                                  show m' ++
+                                                  "\"" ++
+                                                  show s' ++
+                                                  "'"
   where
-    (d,m,s) = toMinutesSeconds a
-    (d',m',s') = toMinutesSeconds h
+    (d, m, s) = toMinutesSeconds a
+    (d', m', s') = toMinutesSeconds h
 
 {-- For graphical representation --}
 data World = World [BrightStar] Screen
@@ -283,32 +328,62 @@ data World = World [BrightStar] Screen
 data Screen = Screen Horizontal Double
   deriving (Eq, Show)
 
-
 cartesian :: Horizontal -> Vector3
-cartesian (Horizontal az al) = Vector3{v3x = sin incl * cos (angle az),
-                                       v3y = sin incl  * sin (angle az),
-                                       v3z = cos incl}
-  where incl = (pi/2) - angle al
-
-screenCoord:: Screen -> Horizontal -> Maybe Point
-screenCoord (Screen wdir dist) hor = undefined 
+cartesian (Horizontal az al) = Vector3
+  { v3x = sin incl * cos (angle az)
+  , v3y = sin incl * sin (angle az)
+  , v3z = cos incl
+  }
   where
-    
-relativeCoord ::Screen -> Vector3 -> Maybe Point
-relativeCoord scr v = undefined
+    incl = (pi / 2) - angle al
+
+screenCoord :: Screen -> Horizontal -> Maybe Point
+screenCoord s hor =
+  let v = screenIntersect s hor
+  in case v of
+    Just p  -> Just $ relativeCoord s p
+    Nothing -> Nothing
+
+relativeCoord :: Screen -> Vector3 -> Point
+relativeCoord s a =
+  let (v, w) = grid s
+      pacc
+        | not (v3x v =~ 0) = v3x
+        | not (v3y v =~ 0) = v3y
+        | otherwise = v3z
+
+      qacc
+        | not (v3x w =~ 0) = v3x
+        | not (v3y w =~ 0) = v3y
+        | otherwise = v3z
+
+      q = (qacc a * pacc v - pacc a * pacc w) / (qacc w * pacc v + pacc w * pacc w)
+      p = (pacc a - q * pacc w) / pacc v
+  in (double2Float p, double2Float q)
+
+origin :: Screen -> Vector3
+origin (Screen vdir dist) =
+  let snv = cartesian vdir
+  in vnormalise snv |* dist
+
+normalVector :: Screen -> Vector3
+normalVector (Screen vdir _) = cartesian vdir
 
 grid :: Screen -> (Vector3, Vector3)
-grid (Screen wdir dist) = undefined
+grid s = (g (Horizontal (Azimuth (az + 15)) (Altitude al)), g
+                                                              (Horizontal (Azimuth az)
+                                                                 (Altitude (al + 15))))
+  where
+    Screen (Horizontal (Azimuth az) (Altitude al)) _ = s
+    h = fromJust . screenIntersect s
+    g x = vnormalise (h x - origin s)
 
-screenIntersect:: Screen -> Horizontal -> Maybe Vector3
-screenIntersect (Screen vdir dist) hor = if not (ln ==  0) 
-                                            then Just (( p0 `vdot` snv)/ ln *| lv)
+screenIntersect :: Screen -> Horizontal -> Maybe Vector3
+screenIntersect s hor = if ln /=  0 
+                                           then Just (( origin s  `vdot` normalVector s)/ ln *| lv)
                                             else Nothing
   where 
-    {-- screen normal vector --}
-    snv = cartesian vdir
     lv = cartesian hor
-    p0 = vnormalise snv |* dist
-    ln = lv `vdot` snv 
+    ln = lv `vdot` normalVector s
     
     

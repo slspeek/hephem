@@ -24,6 +24,9 @@ tests =
      ,testGroup "RA angle" $ hUnitTestToTests testRAAngle
      ,testGroup "solve angle" $ hUnitTestToTests testSolveAngle
      ,testGroup "coord conversion" $ hUnitTestToTests testToHorizontal
+     ,testGroup "grid generation" $ hUnitTestToTests testGrids
+     ,testGroup "screen intersection" $ hUnitTestToTests testScreenIntersects
+     ,testGroup "relative coord" $ hUnitTestToTests testRelativeCoords
     ]
   ]
 

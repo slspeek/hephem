@@ -1,3 +1,4 @@
+
 module HEphem.HEphemTest where
 
 import           HEphem.HEphem
@@ -6,19 +7,7 @@ import           Test.HUnit
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
-
-class AEq a where
-  (=~) :: a -> a -> Bool
-
-instance AEq Double where
-  x =~ y = abs (x - y) < (1.0e-8 :: Double)
-
-instance AEq Horizontal where
-  x =~ y = abs (xaz - yaz) < d && abs (xa - ya) < d
-    where
-      Horizontal (Azimuth xaz) (Altitude xa) = x
-      Horizontal (Azimuth yaz) (Altitude ya) = y
-      d = 0.1 :: Double
+import           Data.Vector.V3
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
 (@=~?) expected actual = expected =~ actual @? assertionMsg
@@ -32,7 +21,10 @@ parseStar = fst . last . readP_to_S star
 mirfakLine :: String
 mirfakLine = "  33   alpha    Per  1017   3 25 29     +49 54 50   das     1.79 +0.37 +0.48 F5 Ib"
 
+betelgeuseLine :: [Char]
 betelgeuseLine = "  58   alpha    Ori  2061   5 56 02.0   + 7 24 27   ad6     0.50 +2.06 +1.85 M1-M2 Ia-Iab"
+
+pole :: [Char]
 pole = "          NorthPole  0000   0 00 00      90 00 10   das     1.79 +0.37 +0.48 F5 Ib"
 
 betelgeuse :: BrightStar
@@ -47,6 +39,7 @@ northskypole = parseStar pole
 decl :: String
 decl = "  +49 54 54"
 
+geoAms :: GeoLocation
 geoAms = GeoLocation (Latitude 52 21 0) (Longitude 4 51 59)
 
 testBrightStarList :: Test
@@ -92,7 +85,8 @@ testSolveAngle = TestList [ TestCase (solveAngle c s @=~? a)| (c,s,a) <- [(b,b,q
     qp = pi/4
 
 testToHorizontal :: Test
-testToHorizontal = TestList [ testToHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <- [(mirfak, 0,((93, 40, 15),(77, 39, 08))),
+testToHorizontal = TestList [ testToHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <-
+                                                                           [(mirfak, 0,((93, 40, 15),(77, 39, 08))),
                                                                             (mirfak, 1,((130, 17, 32),(86, 21, 34))),
                                                                             (mirfak, 3,((271, 40, 38),(73, 44, 08))),
                                                                             (mirfak, 4,((280, 57, 11),(64, 37, 03))),
@@ -101,11 +95,53 @@ testToHorizontal = TestList [ testToHorizontalCoord s (mkUTCTime u) (mkHorzontal
                                                                             (betelgeuse, 1, ((127,18,57),(33,32,49))),
                                                                             (betelgeuse, 2, ((144,10,03),(39,57,37))),
                                                                             (betelgeuse, 3, ((163,31,58),(44,01,04))),
-                                                                            (northskypole, 0, ((0,0,0),(52, 20, 00)))   ]  
+                                                                            (northskypole, 0, ((0,0,0),(52, 20, 00)))
+                                                                           ]  
                             ]
   where 
     mkUTCTime x = UTCTime{utctDay=fromGregorian 2015 10 19, utctDayTime=secondsToDiffTime (x * 3600)} 
     mkHorzontal ((d, m, s),(d', m', s')) = Horizontal (Azimuth (todec d m s )) (Altitude (todec d' m' s'))
 
-
+testGrid :: Screen -> (Vector3, Vector3) -> Test
+testGrid scr vs = TestCase(do 
+                          fst vs @=~? v 
+                          snd vs @=~? w)
+  where 
+    (v, w) = grid scr
     
+testGrids :: Test
+testGrids = TestList  [testGrid scr v | (scr,v) <- [(flatNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=0,v3y=0,v3z=1}))]]
+
+flatNorth :: Horizontal
+flatNorth = Horizontal (Azimuth 0) (Altitude 0)
+flatEast :: Horizontal
+flatEast = Horizontal (Azimuth 90) (Altitude 0)
+flatNorth1 :: Screen
+flatNorth1 = Screen flatNorth 1
+flatEast1 :: Screen
+flatEast1 = Screen flatEast 1
+ 
+testScreenIntersect :: Screen -> Horizontal -> Vector3 -> Test
+testScreenIntersect scr hor p = TestCase(p @=~? fromJust (screenIntersect scr hor))
+testScreenIntersects :: Test
+testScreenIntersects = TestList [testScreenIntersect scr hor p| (scr, hor, p) <- 
+                                  [(flatNorth1, flatNorth,Vector3{v3x=1,v3y=0,v3z=0}),
+                                  (flatEast1, flatEast,Vector3{v3x=0,v3y=1,v3z=0})
+                                  ]]
+
+testRelativeCoord :: Screen -> Vector3 -> (Float, Float) -> Test
+testRelativeCoord s p r = TestCase (
+  do
+   let (x,y) = r
+   let rc = relativeCoord s p
+   x @=~? fst rc 
+   y @=~? snd rc
+   )
+
+testRelativeCoords :: Test
+testRelativeCoords = TestList [ testRelativeCoord s p r | (s,p,r) <-
+ [
+  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=1},(0,1)),
+  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=10},(0,10)),
+  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=0},(0,0)),(flatNorth1, Vector3{v3x=1,v3y=1,v3z=0},(1,0)) ]
+ ] 
