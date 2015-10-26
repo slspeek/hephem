@@ -39,8 +39,6 @@ northskypole = parseStar pole
 decl :: String
 decl = "  +49 54 54"
 
-geoAms :: GeoLocation
-geoAms = GeoLocation (Latitude 52 21 0) (Longitude 4 51 59)
 
 testBrightStarList :: Test
 testBrightStarList = TestCase (length (filter (\x -> bSpectralType x == " ") brightstarlist) @?= 0)

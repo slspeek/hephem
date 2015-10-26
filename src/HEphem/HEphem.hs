@@ -14,6 +14,9 @@ import           Graphics.Gloss.Data.Point
 import           Data.Maybe
 import           GHC.Float
 
+geoAms :: GeoLocation
+geoAms = GeoLocation (Latitude 52 21 0) (Longitude 4 51 59)
+
 brightstartext :: IsString a => a
 brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
 
@@ -176,7 +179,6 @@ instance AEq Float where
 
 {-instance AEq (Vector3, Vector3) where-}
 {-v =~ w = fst v =~ fst w && snd v =~ snvd w-}
-
 data GeoLocation = GeoLocation Latitude Longitude
   deriving (Eq, Show)
 
@@ -327,7 +329,6 @@ data World = World [BrightStar] Screen
 {-- Viewing screen has a direction and distance --}
 data Screen = Screen Horizontal Double
   deriving (Eq, Show)
-
 cartesian :: Horizontal -> Vector3
 cartesian (Horizontal az al) = Vector3
   { v3x = sin incl * cos (angle az)
@@ -338,11 +339,12 @@ cartesian (Horizontal az al) = Vector3
     incl = (pi / 2) - angle al
 
 screenCoord :: Screen -> Horizontal -> Maybe Point
-screenCoord s hor =
-  let v = screenIntersect s hor
+screenCoord s (Horizontal (Azimuth az)(Altitude h)) | h >0  =
+  let v = screenIntersect s (Horizontal (Azimuth az) (Altitude h))
   in case v of
     Just p  -> Just $ relativeCoord s p
     Nothing -> Nothing
+                                                  |otherwise = Nothing
 
 relativeCoord :: Screen -> Vector3 -> Point
 relativeCoord s a =
