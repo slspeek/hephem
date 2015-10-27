@@ -10,6 +10,7 @@ import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Data.Vector.V3
 import           Data.Vector.Class
+import           Control.Monad
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
 (@=~?) expected actual = expected =~ actual @? assertionMsg
@@ -152,14 +153,26 @@ testScreenIntersects = TestList [testScreenIntersect scr hor p| (scr, hor, p) <-
                                   (flatEast1, flatEast,Vector3{v3x=0,v3y=1,v3z=0})
                                   ]]
 
-instance Arbitrary Screen 
-instance Arbitrary Horizontal
-instance Arbitrary Azimuth
-    arbitrary = elements [ Azimuth 0, Azimuth 10 ]
+prop_Grid_Mag1 s = (vmag x =~ 1) && (vmag y =~ 1 )
+  where (x,y) = grid s
+
+instance Arbitrary Screen where 
+    arbitrary = liftM2 Screen arbitrary arbitrary
+
+instance Arbitrary Horizontal where
+    arbitrary = liftM2 Horizontal arbitrary arbitrary
+
+instance Arbitrary Azimuth where
+    arbitrary = liftM Azimuth (suchThat arbitrary (\x -> x >= 0 && x <= 360 ))
+
 instance Arbitrary Altitude where
-    arbitrary = elements [ Altitude 0, Altitude 10 ]
+    arbitrary = liftM Altitude (suchThat arbitrary (\x -> x >= 0 && x < 90 ))
   
+instance Arbitrary Vector3 where
+  arbitrary = liftM3 Vector3 arbitrary arbitrary arbitrary
+
 propScreenIntersect scr hor  = ( (fromJust ( screenIntersect scr hor) - origin scr) `vdot` normalVector scr) =~ 0
+
 testRelativeCoord :: Screen -> Vector3 -> (Float, Float) -> Test
 testRelativeCoord s p r = TestCase (
   do
@@ -174,5 +187,10 @@ testRelativeCoords = TestList [ testRelativeCoord s p r | (s,p,r) <-
  [
   (flatNorth1, Vector3{v3x=1,v3y=0,v3z=1},(0,1)),
   (flatNorth1, Vector3{v3x=1,v3y=0,v3z=10},(0,10)),
-  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=0},(0,0)),(flatNorth1, Vector3{v3x=1,v3y=1,v3z=0},(1,0)) ]
+  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=0},(0,0)),
+  (flatNorth1, Vector3{v3x=1,v3y=1,v3z=0},(1,0)) ]
  ] 
+
+propVector :: Vector3 -> Bool
+propVector v = vmag v == 0
+

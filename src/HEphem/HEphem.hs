@@ -362,9 +362,10 @@ relativeCoord s a =
         | abs(v3y w) > 0.2 = v3y
         | otherwise = v3z
 
-      q = (qacc a * pacc v - pacc a * pacc w) / (qacc w * pacc v + pacc w * pacc w)
+      q = (qacc a * pacc v - pacc a * qacc v) / (qacc w * pacc v + pacc w * qacc v)
       p = (pacc a - q * pacc w) / pacc v
   in (double2Float p, double2Float q)
+
 
 origin :: Screen -> Vector3
 origin (Screen vdir dist) =
@@ -382,7 +383,7 @@ grid s = (g (Horizontal (Azimuth (az + delta)) (Altitude al)), g
     Screen (Horizontal (Azimuth az) (Altitude al)) _ = s
     h = fromJust . screenIntersect s
     g x = vnormalise (h x - origin s)
-    delta = 0.000005
+    delta = 3
 
 screenIntersect :: Screen -> Horizontal -> Maybe Vector3
 screenIntersect s hor = if ln /=  0 

@@ -28,6 +28,7 @@ tests =
      ,testGroup "screen intersection" $ hUnitTestToTests testScreenIntersects
      ,testGroup "relative coord" $ hUnitTestToTests testRelativeCoords
      ,testGroup "cartesian" $ hUnitTestToTests testCartesians
+    , testProperty "screenIntersect value lays in the screen-plane" propScreenIntersect
     ]
   ]
 
