@@ -4,10 +4,12 @@ module HEphem.HEphemTest where
 import           HEphem.HEphem
 import           Text.ParserCombinators.ReadP
 import           Test.HUnit
+import           Test.QuickCheck
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Data.Vector.V3
+import           Data.Vector.Class
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
 (@=~?) expected actual = expected =~ actual @? assertionMsg
@@ -100,6 +102,29 @@ testToHorizontal = TestList [ testToHorizontalCoord s (mkUTCTime u) (mkHorzontal
     mkUTCTime x = UTCTime{utctDay=fromGregorian 2015 10 19, utctDayTime=secondsToDiffTime (x * 3600)} 
     mkHorzontal ((d, m, s),(d', m', s')) = Horizontal (Azimuth (todec d m s )) (Altitude (todec d' m' s'))
 
+
+flatNorth :: Horizontal
+flatNorth = Horizontal (Azimuth 0) (Altitude 0)
+zenithNorth = Horizontal (Azimuth 0) (Altitude 90)
+flatEast :: Horizontal
+flatEast = Horizontal (Azimuth 90) (Altitude 0)
+flatNorth1 :: Screen
+flatNorth1 = Screen flatNorth 1
+flatEast1 :: Screen
+flatEast1 = Screen flatEast 1
+zenithNorth1 = Screen zenithNorth 1
+north = Horizontal (Azimuth 0) (Altitude 45)
+north1 = Screen north 1
+northEast = Horizontal (Azimuth 45) (Altitude 45)
+northEast1 = Screen northEast 1
+
+testCartesian :: Horizontal -> Vector3 -> Test 
+testCartesian hor v = TestCase $ v @=~? cartesian hor 
+
+testCartesians :: Test
+testCartesians = TestList [ testCartesian h v | (h,v) <- [(north,Vector3{v3x= sqrt 2 / 2, v3y=0, v3z= sqrt 2 / 2}),
+                                                         (northEast,Vector3{v3x=1/2, v3y=1/2, v3z= sqrt 2 / 2})]
+                          ]
 testGrid :: Screen -> (Vector3, Vector3) -> Test
 testGrid scr vs = TestCase(do 
                           fst vs @=~? v 
@@ -108,25 +133,33 @@ testGrid scr vs = TestCase(do
     (v, w) = grid scr
     
 testGrids :: Test
-testGrids = TestList  [testGrid scr v | (scr,v) <- [(flatNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=0,v3y=0,v3z=1}))]]
+testGrids = TestList  [testGrid scr v | (scr,v) <- [(flatNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=0,v3y=0,v3z=1})),
+                                                    (flatEast1,(Vector3{v3x=(-1),v3y=0,v3z=0},Vector3{v3x=0,v3y=0,v3z=1})),
+                                                    (north1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x= -sqrt 2 / 2,v3y=0,v3z=sqrt 2 /2})),
+                                                    (northEast1,(Vector3{v3x= -sqrt 2 / 2,v3y= sqrt 2 / 2,v3z=0},Vector3{v3x= -sqrt 2 / 2,v3y=0,v3z=sqrt 2 /2})),
+                                                    (zenithNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=(-1),v3y=0,v3z=0}))
+                                                    ]]
 
-flatNorth :: Horizontal
-flatNorth = Horizontal (Azimuth 0) (Altitude 0)
-flatEast :: Horizontal
-flatEast = Horizontal (Azimuth 90) (Altitude 0)
-flatNorth1 :: Screen
-flatNorth1 = Screen flatNorth 1
-flatEast1 :: Screen
-flatEast1 = Screen flatEast 1
- 
 testScreenIntersect :: Screen -> Horizontal -> Vector3 -> Test
 testScreenIntersect scr hor p = TestCase(p @=~? fromJust (screenIntersect scr hor))
 testScreenIntersects :: Test
 testScreenIntersects = TestList [testScreenIntersect scr hor p| (scr, hor, p) <- 
                                   [(flatNorth1, flatNorth,Vector3{v3x=1,v3y=0,v3z=0}),
+                                  (flatNorth1, north,Vector3{v3x=1,v3y=0,v3z=1}),
+                                  (flatNorth1, (Horizontal (Azimuth 45)(Altitude 0)),Vector3{v3x=1,v3y= 1,v3z=0}),
+                                  (flatNorth1, northEast, Vector3{v3x=1,v3y= 1,v3z= sqrt 2}),
+                                  (northEast1, northEast, Vector3{v3x=0.5,v3y=0.5,v3z= sqrt 2 / 2}),
                                   (flatEast1, flatEast,Vector3{v3x=0,v3y=1,v3z=0})
                                   ]]
 
+instance Arbitrary Screen 
+instance Arbitrary Horizontal
+instance Arbitrary Azimuth
+    arbitrary = elements [ Azimuth 0, Azimuth 10 ]
+instance Arbitrary Altitude where
+    arbitrary = elements [ Altitude 0, Altitude 10 ]
+  
+propScreenIntersect scr hor  = ( (fromJust ( screenIntersect scr hor) - origin scr) `vdot` normalVector scr) =~ 0
 testRelativeCoord :: Screen -> Vector3 -> (Float, Float) -> Test
 testRelativeCoord s p r = TestCase (
   do

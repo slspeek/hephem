@@ -6,7 +6,7 @@ import Graphics.Gloss.Interface.IO.Game
 import GHC.Float
 
 north :: Screen
-north = Screen (Horizontal (Azimuth 45) (Altitude 52)) 10
+north = Screen (Horizontal (Azimuth 90) (Altitude 90)) 60
 
 main:: IO ()
 main = do 
@@ -15,7 +15,7 @@ main = do
          5
          (World brightstarlist north)
          pictureWorld
-         (\event  world -> return world)
+         eventHandler
          (\time world -> return world)
          
 pictureWorld::World -> IO Picture
@@ -29,4 +29,12 @@ pictureWorld (World bs scr)  =
           pictureStar s utc | s <- brightstarlist]
     {-return $ pictures [ translate 0 100 $ circleSolid 5, translate (-50) (-100) $ circleSolid 3, circleSolid 10]-}
 
-
+eventHandler:: Event -> World -> IO World
+eventHandler ev (World bs (Screen (Horizontal (Azimuth az) (Altitude h)) d) ) = 
+  case ev of EventKey (SpecialKey KeyLeft)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth (15+az))(Altitude h)) d) 
+             EventKey (SpecialKey KeyRight)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth ((-15)+az))(Altitude h)) d) 
+             EventKey (SpecialKey KeyUp)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude (h+7))) d) 
+             EventKey (SpecialKey KeyDown)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude (h-7))) d) 
+             EventKey (Char 'w')  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude h)) (d + 1)) 
+             EventKey (Char 's')  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude h)) (d - 1)) 
+             _ -> return $  (World  bs (Screen (Horizontal (Azimuth az) (Altitude h)) d) )

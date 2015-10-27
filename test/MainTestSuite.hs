@@ -27,6 +27,7 @@ tests =
      ,testGroup "grid generation" $ hUnitTestToTests testGrids
      ,testGroup "screen intersection" $ hUnitTestToTests testScreenIntersects
      ,testGroup "relative coord" $ hUnitTestToTests testRelativeCoords
+     ,testGroup "cartesian" $ hUnitTestToTests testCartesians
     ]
   ]
 

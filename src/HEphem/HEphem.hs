@@ -323,7 +323,10 @@ pretty (b, Horizontal (Azimuth a) (Altitude h)) = bName b ++
     (d', m', s') = toMinutesSeconds h
 
 {-- For graphical representation --}
-data World = World [BrightStar] Screen
+data World = World {
+                  wStars ::[BrightStar],
+                  wScreen ::Screen
+                  }
   deriving (Eq, Show)
 
 {-- Viewing screen has a direction and distance --}
@@ -350,13 +353,13 @@ relativeCoord :: Screen -> Vector3 -> Point
 relativeCoord s a =
   let (v, w) = grid s
       pacc
-        | not (v3x v =~ 0) = v3x
-        | not (v3y v =~ 0) = v3y
+        | abs(v3x v) > 0.2 = v3x
+        | abs(v3y v) > 0.2 = v3y
         | otherwise = v3z
 
       qacc
-        | not (v3x w =~ 0) = v3x
-        | not (v3y w =~ 0) = v3y
+        | abs(v3x w) > 0.2 = v3x
+        | abs(v3y w) > 0.2 = v3y
         | otherwise = v3z
 
       q = (qacc a * pacc v - pacc a * pacc w) / (qacc w * pacc v + pacc w * pacc w)
@@ -372,13 +375,14 @@ normalVector :: Screen -> Vector3
 normalVector (Screen vdir _) = cartesian vdir
 
 grid :: Screen -> (Vector3, Vector3)
-grid s = (g (Horizontal (Azimuth (az + 15)) (Altitude al)), g
+grid s = (g (Horizontal (Azimuth (az + delta)) (Altitude al)), g
                                                               (Horizontal (Azimuth az)
-                                                                 (Altitude (al + 15))))
+                                                                 (Altitude (al + delta))))
   where
     Screen (Horizontal (Azimuth az) (Altitude al)) _ = s
     h = fromJust . screenIntersect s
     g x = vnormalise (h x - origin s)
+    delta = 0.000005
 
 screenIntersect :: Screen -> Horizontal -> Maybe Vector3
 screenIntersect s hor = if ln /=  0 
