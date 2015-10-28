@@ -1,4 +1,4 @@
-
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 module HEphem.HEphemTest where
 
 import           HEphem.HEphem
@@ -11,6 +11,7 @@ import           Data.Time.Clock
 import           Data.Vector.V3
 import           Data.Vector.Class
 import           Control.Monad
+import           GHC.Float
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
 (@=~?) expected actual = expected =~ actual @? assertionMsg
@@ -106,6 +107,7 @@ testToHorizontal = TestList [ testToHorizontalCoord s (mkUTCTime u) (mkHorzontal
 
 flatNorth :: Horizontal
 flatNorth = Horizontal (Azimuth 0) (Altitude 0)
+zenithNorth :: Horizontal
 zenithNorth = Horizontal (Azimuth 0) (Altitude 90)
 flatEast :: Horizontal
 flatEast = Horizontal (Azimuth 90) (Altitude 0)
@@ -113,10 +115,15 @@ flatNorth1 :: Screen
 flatNorth1 = Screen flatNorth 1
 flatEast1 :: Screen
 flatEast1 = Screen flatEast 1
+zenithNorth1 :: Screen
 zenithNorth1 = Screen zenithNorth 1
+north :: Horizontal
 north = Horizontal (Azimuth 0) (Altitude 45)
+north1 :: Screen
 north1 = Screen north 1
+northEast :: Horizontal
 northEast = Horizontal (Azimuth 45) (Altitude 45)
+northEast1 :: Screen
 northEast1 = Screen northEast 1
 
 testCartesian :: Horizontal -> Vector3 -> Test 
@@ -137,7 +144,7 @@ testGrids :: Test
 testGrids = TestList  [testGrid scr v | (scr,v) <- [(flatNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=0,v3y=0,v3z=1})),
                                                     (flatEast1,(Vector3{v3x=(-1),v3y=0,v3z=0},Vector3{v3x=0,v3y=0,v3z=1})),
                                                     (north1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x= -sqrt 2 / 2,v3y=0,v3z=sqrt 2 /2})),
-                                                    (northEast1,(Vector3{v3x= -sqrt 2 / 2,v3y= sqrt 2 / 2,v3z=0},Vector3{v3x= -sqrt 2 / 2,v3y=0,v3z=sqrt 2 /2})),
+                                                    (northEast1,(Vector3{v3x= - sqrt 2/ 2,v3y= sqrt 2 / 2,v3z= 0},Vector3{v3x= (-1) / 2,v3y= -1/2,v3z=sqrt 2 /2})),
                                                     (zenithNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=(-1),v3y=0,v3z=0}))
                                                     ]]
 
@@ -153,25 +160,26 @@ testScreenIntersects = TestList [testScreenIntersect scr hor p| (scr, hor, p) <-
                                   (flatEast1, flatEast,Vector3{v3x=0,v3y=1,v3z=0})
                                   ]]
 
-prop_Grid_Mag1 s = (vmag x =~ 1) && (vmag y =~ 1 )
+prop_Grid_Mag1 :: Screen -> Bool
+prop_Grid_Mag1 s = (abs(vmag x - 1)  < 0.01) && (abs(vmag y - 1) < 0.01) 
   where (x,y) = grid s
 
-instance Arbitrary Screen where 
-    arbitrary = liftM2 Screen arbitrary arbitrary
+prop_Grid_Orthogonal :: Screen -> Bool
+prop_Grid_Orthogonal s = (x `vdot` y)  =~ 0 && (x `vdot` snv) =~ 0 && (y `vdot` snv) =~ 0
+  where 
+   (x,y) = grid s
+   snv = normalVector s
 
-instance Arbitrary Horizontal where
-    arbitrary = liftM2 Horizontal arbitrary arbitrary
+prop_ScreenCoord :: Screen -> Horizontal -> Bool
+prop_ScreenCoord s hor = vmag ((origin s + float2Double p *| v + float2Double q *| w) -  i) < 0.1
+    where 
+      (p, q) = fromJust $ screenCoord s hor
+      (v, w) = grid s
+      i = fromJust $ screenIntersect s hor 
 
-instance Arbitrary Azimuth where
-    arbitrary = liftM Azimuth (suchThat arbitrary (\x -> x >= 0 && x <= 360 ))
 
-instance Arbitrary Altitude where
-    arbitrary = liftM Altitude (suchThat arbitrary (\x -> x >= 0 && x < 90 ))
-  
-instance Arbitrary Vector3 where
-  arbitrary = liftM3 Vector3 arbitrary arbitrary arbitrary
-
-propScreenIntersect scr hor  = ( (fromJust ( screenIntersect scr hor) - origin scr) `vdot` normalVector scr) =~ 0
+prop_ScreenIntersect :: Screen -> Horizontal -> Bool
+prop_ScreenIntersect scr hor  = ( (fromJust ( screenIntersect scr hor) - origin scr) `vdot` normalVector scr) =~ 0
 
 testRelativeCoord :: Screen -> Vector3 -> (Float, Float) -> Test
 testRelativeCoord s p r = TestCase (

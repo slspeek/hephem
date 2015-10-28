@@ -1,5 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
-
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TemplateHaskell, TypeFamilies #-}
 module HEphem.HEphem where
 
 import           Text.ParserCombinators.ReadP
@@ -10,9 +9,14 @@ import           Data.Time.Calendar
 import           Data.Fixed (mod', div')
 import           Data.Vector.V3
 import           Data.Vector.Class
-import           Graphics.Gloss.Data.Point
-import           Data.Maybe
+import qualified  Graphics.Gloss.Data.Point as P
 import           GHC.Float
+import           Data.Vector.Fancy
+import           Data.Angle
+import           Data.Vector.Transform.T3
+import           Data.Vector.Transform.Fancy
+import           Test.QuickCheck
+import           Control.Monad
 
 geoAms :: GeoLocation
 geoAms = GeoLocation (Latitude 52 21 0) (Longitude 4 51 59)
@@ -221,6 +225,21 @@ data Altitude = Altitude Double
 instance HasAngle Altitude where
   angle (Altitude h) = deg2rad h
 
+instance Arbitrary Screen where 
+    arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (\x -> x > 1) )
+
+instance Arbitrary Horizontal where
+    arbitrary = liftM2 Horizontal arbitrary arbitrary
+
+instance Arbitrary Azimuth where
+    arbitrary = liftM Azimuth (suchThat arbitrary (\x -> x >= 0 && x <= 360 ))
+
+instance Arbitrary Altitude where
+    arbitrary = liftM Altitude (suchThat arbitrary (\x -> x >= 0 && x < 90 ))
+  
+instance Arbitrary Vector3 where
+  arbitrary = liftM3 Vector3 arbitrary arbitrary arbitrary
+
 rA :: Equatorial -> Double
 rA (Equatorial ra _) = angle ra
 
@@ -341,7 +360,7 @@ cartesian (Horizontal az al) = Vector3
   where
     incl = (pi / 2) - angle al
 
-screenCoord :: Screen -> Horizontal -> Maybe Point
+screenCoord :: Screen -> Horizontal -> Maybe P.Point
 screenCoord s (Horizontal (Azimuth az)(Altitude h)) | h >0  =
   let v = screenIntersect s (Horizontal (Azimuth az) (Altitude h))
   in case v of
@@ -349,23 +368,26 @@ screenCoord s (Horizontal (Azimuth az)(Altitude h)) | h >0  =
     Nothing -> Nothing
                                                   |otherwise = Nothing
 
-relativeCoord :: Screen -> Vector3 -> Point
-relativeCoord s a =
-  let (v, w) = grid s
+relativeCoord :: Screen -> Vector3 -> P.Point
+relativeCoord s w  = solveLinearEq (grid s) v
+  where v = w - origin s
+
+
+solveLinearEq :: (Vector3, Vector3) -> Vector3 -> P.Point
+solveLinearEq (v, w) a = (double2Float p, double2Float q)
+  where
       pacc
-        | abs(v3x v) > 0.2 = v3x
-        | abs(v3y v) > 0.2 = v3y
+        | abs(v3x v) >= abs(v3y v) && abs(v3x v) >= abs(v3z v) = v3x
+        | abs(v3y v) >= abs(v3x v) && abs(v3y v) >= abs(v3z v) = v3y
         | otherwise = v3z
 
       qacc
-        | abs(v3x w) > 0.2 = v3x
-        | abs(v3y w) > 0.2 = v3y
+        | abs(v3x w) >= abs(v3y w) && abs(v3x w) >= abs(v3z w) = v3x
+        | abs(v3y w) >= abs(v3x w) && abs(v3y w) >= abs(v3z w) = v3y
         | otherwise = v3z
 
       q = (qacc a * pacc v - pacc a * qacc v) / (qacc w * pacc v + pacc w * qacc v)
       p = (pacc a - q * pacc w) / pacc v
-  in (double2Float p, double2Float q)
-
 
 origin :: Screen -> Vector3
 origin (Screen vdir dist) =
@@ -376,14 +398,15 @@ normalVector :: Screen -> Vector3
 normalVector (Screen vdir _) = cartesian vdir
 
 grid :: Screen -> (Vector3, Vector3)
-grid s = (g (Horizontal (Azimuth (az + delta)) (Altitude al)), g
-                                                              (Horizontal (Azimuth az)
-                                                                 (Altitude (al + delta))))
+grid (Screen (Horizontal az  al) _) = (r x, r y)
   where
-    Screen (Horizontal (Azimuth az) (Altitude al)) _ = s
-    h = fromJust . screenIntersect s
-    g x = vnormalise (h x - origin s)
-    delta = 3
+    x = Vector3 0 1 0
+    y = Vector3 0 0 1
+    r1 = rotateT AxisX AxisZ (Radians(angle al))
+    r2 = rotateT AxisX AxisY (Radians(angle az))
+    {-rs = rotateT AxisX AxisY (Radians(angle az)) `mappend` rotateT AxisX AxisZ (Radians(angle al)) -}
+    r v = transformP3 r2 (transformP3 r1 v)
+     
 
 screenIntersect :: Screen -> Horizontal -> Maybe Vector3
 screenIntersect s hor = if ln /=  0 

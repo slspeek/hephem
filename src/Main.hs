@@ -35,8 +35,8 @@ eventHandler:: Event -> World -> IO World
 eventHandler ev (World bs (Screen (Horizontal (Azimuth az) (Altitude h)) d) ) = 
   case ev of EventKey (SpecialKey KeyLeft)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth (-3+az))(Altitude h)) d) 
              EventKey (SpecialKey KeyRight)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth (3+az))(Altitude h)) d) 
-             EventKey (SpecialKey KeyUp)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude (h+7))) d) 
-             EventKey (SpecialKey KeyDown)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude (h-7))) d) 
+             EventKey (SpecialKey KeyUp)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude (h+3))) d) 
+             EventKey (SpecialKey KeyDown)  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude (h-3))) d) 
              EventKey (Char 'w')  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude h)) (d + 1)) 
              EventKey (Char 's')  Up _ _ -> return $ World bs (Screen (Horizontal (Azimuth az)(Altitude h)) (d - 1)) 
              _ -> return $  (World  bs (Screen (Horizontal (Azimuth az) (Altitude h)) d) )

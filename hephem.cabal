@@ -65,6 +65,10 @@ library
       ,time >= 1.5.0.1
       ,gloss >= 1.9.4.1
       ,AC-Vector == 2.3.2
+      ,AC-Vector-Fancy == 2.4.0
+      ,AC-Angle >= 1.0
+      ,HUnit >= 1.3.0.0
+      ,QuickCheck
   default-language:    Haskell2010
 
 executable hephem
@@ -80,6 +84,9 @@ executable hephem
                      ,time >= 1.5.0.1
                     ,gloss >= 1.9.4.1
                     ,AC-Vector == 2.3.2
+                    ,AC-Vector-Fancy == 2.4.0
+                    ,AC-Angle >= 1.0
+                    ,QuickCheck
 		
 	-- Directories containing source files.
   hs-source-dirs:     src 
@@ -95,6 +102,8 @@ test-suite hephem-tests
   build-depends:     base,
                      file-embed >= 0.0.9,
                      AC-Vector == 2.3.2,
+                     AC-Vector-Fancy == 2.4.0,
+                     AC-Angle >= 1.0,
                      time >= 1.5.0.1,
                      gloss >= 1.9.4.1,
                      HUnit >= 1.3.0.0,

@@ -28,7 +28,10 @@ tests =
      ,testGroup "screen intersection" $ hUnitTestToTests testScreenIntersects
      ,testGroup "relative coord" $ hUnitTestToTests testRelativeCoords
      ,testGroup "cartesian" $ hUnitTestToTests testCartesians
-    , testProperty "screenIntersect value lays in the screen-plane" propScreenIntersect
+    , testProperty "screenIntersect value lays in the screen-plane" prop_ScreenIntersect
+    , testProperty "grid vectors have size 1" prop_Grid_Mag1
+    , testProperty "grid vectors inproduct =~ 0" prop_Grid_Orthogonal
+    , testProperty "screenCoord" prop_ScreenCoord
     ]
   ]
 
