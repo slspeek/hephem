@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TemplateHaskell, TypeFamilies #-}
+
 module HEphem.HEphem where
 
 import           Text.ParserCombinators.ReadP
@@ -9,7 +10,7 @@ import           Data.Time.Calendar
 import           Data.Fixed (mod', div')
 import           Data.Vector.V3
 import           Data.Vector.Class
-import qualified  Graphics.Gloss.Data.Point as P
+import qualified Graphics.Gloss.Data.Point as P
 import           GHC.Float
 import           Data.Vector.Fancy
 import           Data.Angle
@@ -225,18 +226,18 @@ data Altitude = Altitude Double
 instance HasAngle Altitude where
   angle (Altitude h) = deg2rad h
 
-instance Arbitrary Screen where 
-    arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (\x -> x > 1) )
+instance Arbitrary Screen where
+  arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (\x -> x > 1))
 
 instance Arbitrary Horizontal where
-    arbitrary = liftM2 Horizontal arbitrary arbitrary
+  arbitrary = liftM2 Horizontal arbitrary arbitrary
 
 instance Arbitrary Azimuth where
-    arbitrary = liftM Azimuth (suchThat arbitrary (\x -> x >= 0 && x <= 360 ))
+  arbitrary = liftM Azimuth (suchThat arbitrary (\x -> x >= 0 && x <= 360))
 
 instance Arbitrary Altitude where
-    arbitrary = liftM Altitude (suchThat arbitrary (\x -> x >= 0 && x < 90 ))
-  
+  arbitrary = liftM Altitude (suchThat arbitrary (\x -> x >= 0 && x < 90))
+
 instance Arbitrary Vector3 where
   arbitrary = liftM3 Vector3 arbitrary arbitrary arbitrary
 
@@ -342,15 +343,13 @@ pretty (b, Horizontal (Azimuth a) (Altitude h)) = bName b ++
     (d', m', s') = toMinutesSeconds h
 
 {-- For graphical representation --}
-data World = World {
-                  wStars ::[BrightStar],
-                  wScreen ::Screen
-                  }
+data World = World { wStars :: [BrightStar], wScreen :: Screen }
   deriving (Eq, Show)
 
 {-- Viewing screen has a direction and distance --}
 data Screen = Screen Horizontal Double
   deriving (Eq, Show)
+
 cartesian :: Horizontal -> Vector3
 cartesian (Horizontal az al) = Vector3
   { v3x = sin incl * cos (angle az)
@@ -361,33 +360,34 @@ cartesian (Horizontal az al) = Vector3
     incl = (pi / 2) - angle al
 
 screenCoord :: Screen -> Horizontal -> Maybe P.Point
-screenCoord s (Horizontal (Azimuth az)(Altitude h)) | h >0  =
-  let v = screenIntersect s (Horizontal (Azimuth az) (Altitude h))
-  in case v of
-    Just p  -> Just $ relativeCoord s p
-    Nothing -> Nothing
-                                                  |otherwise = Nothing
+screenCoord s (Horizontal (Azimuth az) (Altitude h))
+  | h > 0 =
+      let v = screenIntersect s (Horizontal (Azimuth az) (Altitude h))
+      in case v of
+        Just p  -> Just $ relativeCoord s p
+        Nothing -> Nothing
+  | otherwise = Nothing
 
 relativeCoord :: Screen -> Vector3 -> P.Point
-relativeCoord s w  = solveLinearEq (grid s) v
-  where v = w - origin s
-
+relativeCoord s w = solveLinearEq (grid s) v
+  where
+    v = w - origin s
 
 solveLinearEq :: (Vector3, Vector3) -> Vector3 -> P.Point
 solveLinearEq (v, w) a = (double2Float p, double2Float q)
   where
-      pacc
-        | abs(v3x v) >= abs(v3y v) && abs(v3x v) >= abs(v3z v) = v3x
-        | abs(v3y v) >= abs(v3x v) && abs(v3y v) >= abs(v3z v) = v3y
-        | otherwise = v3z
+    pacc
+      | abs (v3x v) >= abs (v3y v) && abs (v3x v) >= abs (v3z v) = v3x
+      | abs (v3y v) >= abs (v3x v) && abs (v3y v) >= abs (v3z v) = v3y
+      | otherwise = v3z
 
-      qacc
-        | abs(v3x w) >= abs(v3y w) && abs(v3x w) >= abs(v3z w) = v3x
-        | abs(v3y w) >= abs(v3x w) && abs(v3y w) >= abs(v3z w) = v3y
-        | otherwise = v3z
+    qacc
+      | abs (v3x w) >= abs (v3y w) && abs (v3x w) >= abs (v3z w) = v3x
+      | abs (v3y w) >= abs (v3x w) && abs (v3y w) >= abs (v3z w) = v3y
+      | otherwise = v3z
 
-      q = (qacc a * pacc v - pacc a * qacc v) / (qacc w * pacc v + pacc w * qacc v)
-      p = (pacc a - q * pacc w) / pacc v
+    q = (qacc a * pacc v - pacc a * qacc v) / (qacc w * pacc v + pacc w * qacc v)
+    p = (pacc a - q * pacc w) / pacc v
 
 origin :: Screen -> Vector3
 origin (Screen vdir dist) =
@@ -398,22 +398,21 @@ normalVector :: Screen -> Vector3
 normalVector (Screen vdir _) = cartesian vdir
 
 grid :: Screen -> (Vector3, Vector3)
-grid (Screen (Horizontal az  al) _) = (r x, r y)
+grid (Screen (Horizontal az al) _) = (r x, r y)
   where
     x = Vector3 0 1 0
     y = Vector3 0 0 1
-    r1 = rotateT AxisX AxisZ (Radians(angle al))
-    r2 = rotateT AxisX AxisY (Radians(angle az))
-    {-rs = rotateT AxisX AxisY (Radians(angle az)) `mappend` rotateT AxisX AxisZ (Radians(angle al)) -}
+    r1 = rotateT AxisX AxisZ (Radians (angle al))
+    r2 = rotateT AxisX AxisY (Radians (angle az))
     r v = transformP3 r2 (transformP3 r1 v)
-     
 
 screenIntersect :: Screen -> Horizontal -> Maybe Vector3
-screenIntersect s hor = if ln /=  0 
-                                           then Just (( origin s  `vdot` normalVector s)/ ln *| lv)
-                                            else Nothing
-  where 
+screenIntersect s hor = if ln /= 0 && f > 0
+                          then Just $ f *| lv
+                          else Nothing
+  where
     lv = cartesian hor
     ln = lv `vdot` normalVector s
+    f = (origin s `vdot` normalVector s) / ln
     
     

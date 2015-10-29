@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
+
 module HEphem.HEphemTest where
 
 import           HEphem.HEphem
@@ -10,7 +11,6 @@ import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Data.Vector.V3
 import           Data.Vector.Class
-import           Control.Monad
 import           GHC.Float
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
@@ -42,7 +42,6 @@ northskypole = parseStar pole
 
 decl :: String
 decl = "  +49 54 54"
-
 
 testBrightStarList :: Test
 testBrightStarList = TestCase (length (filter (\x -> bSpectralType x == " ") brightstarlist) @?= 0)
@@ -78,127 +77,213 @@ testSiderealtime' = TestCase (toMinutesSeconds (siderealtime utc) @?= (0, 37, 38
     utc = UTCTime { utctDay = fromGregorian 2015 10 1, utctDayTime = secondsToDiffTime 0 }
 
 testToHorizontalCoord :: BrightStar -> UTCTime -> Horizontal -> Test
-testToHorizontalCoord bstar utc hor = TestCase (snd ( horizontal geoAms utc bstar) @=~? hor)
-    
+testToHorizontalCoord bstar utc hor = TestCase (snd (horizontal geoAms utc bstar) @=~? hor)
+
 testSolveAngle :: Test
-testSolveAngle = TestList [ TestCase (solveAngle c s @=~? a)| (c,s,a) <- [(b,b,qp), (-b,b, pi-qp), (-b,-b,pi+qp),(b, -b, 2*pi - qp)]] 
-  where 
+testSolveAngle = TestList
+                   [TestCase (solveAngle c s @=~? a) | (c, s, a) <- [ (b, b, qp)
+                                                                    , (-b, b, pi - qp)
+                                                                    , (-b, -b, pi + qp)
+                                                                    , (b, -b, 2 * pi - qp)
+                                                                    ]]
+  where
     b = sqrt 2.0 / 2
-    qp = pi/4
+    qp = pi / 4
 
 testToHorizontal :: Test
-testToHorizontal = TestList [ testToHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <-
-                                                                           [(mirfak, 0,((93, 40, 15),(77, 39, 08))),
-                                                                            (mirfak, 1,((130, 17, 32),(86, 21, 34))),
-                                                                            (mirfak, 3,((271, 40, 38),(73, 44, 08))),
-                                                                            (mirfak, 4,((280, 57, 11),(64, 37, 03))),
-                                                                            (mirfak, 6,((296,16,44),(47,15,58))),
-                                                                            (betelgeuse, 0, ((112, 46, 12),(25,36,06))),
-                                                                            (betelgeuse, 1, ((127,18,57),(33,32,49))),
-                                                                            (betelgeuse, 2, ((144,10,03),(39,57,37))),
-                                                                            (betelgeuse, 3, ((163,31,58),(44,01,04))),
-                                                                            (northskypole, 0, ((0,0,0),(52, 20, 00)))
-                                                                           ]  
-                            ]
-  where 
-    mkUTCTime x = UTCTime{utctDay=fromGregorian 2015 10 19, utctDayTime=secondsToDiffTime (x * 3600)} 
-    mkHorzontal ((d, m, s),(d', m', s')) = Horizontal (Azimuth (todec d m s )) (Altitude (todec d' m' s'))
-
+testToHorizontal = TestList
+                     [testToHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <- [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
+                                                                                           , (mirfak, 1, ((130, 17, 32), (86, 21, 34)))
+                                                                                           , (mirfak, 3, ((271, 40, 38), (73, 44, 8)))
+                                                                                           , (mirfak, 4, ((280, 57, 11), (64, 37, 3)))
+                                                                                           , (mirfak, 6, ((296, 16, 44), (47, 15, 58)))
+                                                                                           , (betelgeuse, 0, ((112, 46, 12), (25, 36, 6)))
+                                                                                           , (betelgeuse, 1, ((127, 18, 57), (33, 32, 49)))
+                                                                                           , (betelgeuse, 2, ((144, 10, 3), (39, 57, 37)))
+                                                                                           , (betelgeuse, 3, ((163, 31, 58), (44, 1, 4)))
+                                                                                           , (northskypole, 0, ((0, 0, 0), (52, 20, 0)))
+                                                                                           ]]
+  where
+    mkUTCTime x = UTCTime
+      { utctDay = fromGregorian 2015 10 19
+      , utctDayTime = secondsToDiffTime (x * 3600)
+      }
+    mkHorzontal ((d, m, s), (d', m', s')) = Horizontal (Azimuth (todec d m s))
+                                              (Altitude (todec d' m' s'))
 
 flatNorth :: Horizontal
 flatNorth = Horizontal (Azimuth 0) (Altitude 0)
+
 zenithNorth :: Horizontal
 zenithNorth = Horizontal (Azimuth 0) (Altitude 90)
+
 flatEast :: Horizontal
 flatEast = Horizontal (Azimuth 90) (Altitude 0)
+
 flatNorth1 :: Screen
 flatNorth1 = Screen flatNorth 1
+
 flatEast1 :: Screen
 flatEast1 = Screen flatEast 1
+
 zenithNorth1 :: Screen
 zenithNorth1 = Screen zenithNorth 1
+
 north :: Horizontal
 north = Horizontal (Azimuth 0) (Altitude 45)
+
 north1 :: Screen
 north1 = Screen north 1
+
 northEast :: Horizontal
 northEast = Horizontal (Azimuth 45) (Altitude 45)
+
 northEast1 :: Screen
 northEast1 = Screen northEast 1
 
-testCartesian :: Horizontal -> Vector3 -> Test 
-testCartesian hor v = TestCase $ v @=~? cartesian hor 
+testCartesian :: Horizontal -> Vector3 -> Test
+testCartesian hor v = TestCase $ v @=~? cartesian hor
 
 testCartesians :: Test
-testCartesians = TestList [ testCartesian h v | (h,v) <- [(north,Vector3{v3x= sqrt 2 / 2, v3y=0, v3z= sqrt 2 / 2}),
-                                                         (northEast,Vector3{v3x=1/2, v3y=1/2, v3z= sqrt 2 / 2})]
-                          ]
+testCartesians = TestList
+                   [testCartesian h v | (h, v) <- [ (north, Vector3
+                                                              { v3x = sqrt 2 / 2
+                                                              , v3y = 0
+                                                              , v3z = sqrt 2 / 2
+                                                              })
+                                                  , (northEast, Vector3
+                                                                  { v3x = 1 / 2
+                                                                  , v3y = 1 / 2
+                                                                  , v3z = sqrt 2 / 2
+                                                                  })
+                                                  ]]
+
 testGrid :: Screen -> (Vector3, Vector3) -> Test
-testGrid scr vs = TestCase(do 
-                          fst vs @=~? v 
-                          snd vs @=~? w)
-  where 
+testGrid scr vs = TestCase
+                    (do
+                       fst vs @=~? v
+                       snd vs @=~? w)
+  where
     (v, w) = grid scr
-    
+
 testGrids :: Test
-testGrids = TestList  [testGrid scr v | (scr,v) <- [(flatNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=0,v3y=0,v3z=1})),
-                                                    (flatEast1,(Vector3{v3x=(-1),v3y=0,v3z=0},Vector3{v3x=0,v3y=0,v3z=1})),
-                                                    (north1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x= -sqrt 2 / 2,v3y=0,v3z=sqrt 2 /2})),
-                                                    (northEast1,(Vector3{v3x= - sqrt 2/ 2,v3y= sqrt 2 / 2,v3z= 0},Vector3{v3x= (-1) / 2,v3y= -1/2,v3z=sqrt 2 /2})),
-                                                    (zenithNorth1,(Vector3{v3x=0,v3y=1,v3z=0},Vector3{v3x=(-1),v3y=0,v3z=0}))
-                                                    ]]
+testGrids = TestList
+              [testGrid scr v | (scr, v) <- [ (flatNorth1, (Vector3 { v3x = 0, v3y = 1, v3z = 0 }, Vector3
+                                                                                                     { v3x = 0
+                                                                                                     , v3y = 0
+                                                                                                     , v3z = 1
+                                                                                                     }))
+                                            , (flatEast1, (Vector3 { v3x = (-1), v3y = 0, v3z = 0 }, Vector3
+                                                                                                       { v3x = 0
+                                                                                                       , v3y = 0
+                                                                                                       , v3z = 1
+                                                                                                       }))
+                                            , (north1, (Vector3 { v3x = 0, v3y = 1, v3z = 0 }, Vector3
+                                                                                                 { v3x = -sqrt
+                                                                                                            2 / 2
+                                                                                                 , v3y = 0
+                                                                                                 , v3z = sqrt
+                                                                                                           2 / 2
+                                                                                                 }))
+                                            , (northEast1, (Vector3
+                                                              { v3x = -sqrt 2 / 2
+                                                              , v3y = sqrt 2 / 2
+                                                              , v3z = 0
+                                                              }, Vector3
+                                                                   { v3x = (-1) / 2
+                                                                   , v3y = -1 / 2
+                                                                   , v3z = sqrt 2 / 2
+                                                                   }))
+                                            , (zenithNorth1, (Vector3 { v3x = 0, v3y = 1, v3z = 0 }, Vector3
+                                                                                                       { v3x = (-1)
+                                                                                                       , v3y = 0
+                                                                                                       , v3z = 0
+                                                                                                       }))
+                                            ]]
 
 testScreenIntersect :: Screen -> Horizontal -> Vector3 -> Test
-testScreenIntersect scr hor p = TestCase(p @=~? fromJust (screenIntersect scr hor))
+testScreenIntersect scr hor p = TestCase (p @=~? fromJust (screenIntersect scr hor))
+
 testScreenIntersects :: Test
-testScreenIntersects = TestList [testScreenIntersect scr hor p| (scr, hor, p) <- 
-                                  [(flatNorth1, flatNorth,Vector3{v3x=1,v3y=0,v3z=0}),
-                                  (flatNorth1, north,Vector3{v3x=1,v3y=0,v3z=1}),
-                                  (flatNorth1, (Horizontal (Azimuth 45)(Altitude 0)),Vector3{v3x=1,v3y= 1,v3z=0}),
-                                  (flatNorth1, northEast, Vector3{v3x=1,v3y= 1,v3z= sqrt 2}),
-                                  (northEast1, northEast, Vector3{v3x=0.5,v3y=0.5,v3z= sqrt 2 / 2}),
-                                  (flatEast1, flatEast,Vector3{v3x=0,v3y=1,v3z=0})
-                                  ]]
+testScreenIntersects = TestList
+                         [testScreenIntersect scr hor p | (scr, hor, p) <- [ (flatNorth1, flatNorth, Vector3
+                                                                                                       { v3x = 1
+                                                                                                       , v3y = 0
+                                                                                                       , v3z = 0
+                                                                                                       })
+                                                                           , (flatNorth1, north, Vector3
+                                                                                                   { v3x = 1
+                                                                                                   , v3y = 0
+                                                                                                   , v3z = 1
+                                                                                                   })
+                                                                           , (flatNorth1, (Horizontal
+                                                                                             (Azimuth
+                                                                                                45)
+                                                                                             (Altitude
+                                                                                                0)), Vector3
+                                                                                                       { v3x = 1
+                                                                                                       , v3y = 1
+                                                                                                       , v3z = 0
+                                                                                                       })
+                                                                           , (flatNorth1, northEast, Vector3
+                                                                                                       { v3x = 1
+                                                                                                       , v3y = 1
+                                                                                                       , v3z = sqrt
+                                                                                                                 2
+                                                                                                       })
+                                                                           , (northEast1, northEast, Vector3
+                                                                                                       { v3x = 0.5
+                                                                                                       , v3y = 0.5
+                                                                                                       , v3z = sqrt
+                                                                                                                 2 / 2
+                                                                                                       })
+                                                                           , (flatEast1, flatEast, Vector3
+                                                                                                     { v3x = 0
+                                                                                                     , v3y = 1
+                                                                                                     , v3z = 0
+                                                                                                     })
+                                                                           ]]
 
 prop_Grid_Mag1 :: Screen -> Bool
-prop_Grid_Mag1 s = (abs(vmag x - 1)  < 0.01) && (abs(vmag y - 1) < 0.01) 
-  where (x,y) = grid s
+prop_Grid_Mag1 s = (abs (vmag x - 1) < 1.0e-2) && (abs (vmag y - 1) < 1.0e-2)
+  where
+    (x, y) = grid s
 
 prop_Grid_Orthogonal :: Screen -> Bool
-prop_Grid_Orthogonal s = (x `vdot` y)  =~ 0 && (x `vdot` snv) =~ 0 && (y `vdot` snv) =~ 0
-  where 
-   (x,y) = grid s
-   snv = normalVector s
+prop_Grid_Orthogonal s = (x `vdot` y) =~ 0 && (x `vdot` snv) =~ 0 && (y `vdot` snv) =~ 0
+  where
+    (x, y) = grid s
+    snv = normalVector s
 
-prop_ScreenCoord :: Screen -> Horizontal -> Bool
-prop_ScreenCoord s hor = vmag ((origin s + float2Double p *| v + float2Double q *| w) -  i) < 0.1
-    where 
-      (p, q) = fromJust $ screenCoord s hor
-      (v, w) = grid s
-      i = fromJust $ screenIntersect s hor 
-
+prop_ScreenCoord :: Screen -> Horizontal -> Property
+prop_ScreenCoord s hor = isJust (screenCoord s hor) && isJust (screenIntersect s hor)
+                                                       ==> (vmag
+                                                              ((origin s +
+                                                                float2Double p *| v +
+                                                                float2Double q *| w) - i) < 0.1)
+  where
+    (p, q) = fromJust $ screenCoord s hor
+    (v, w) = grid s
+    i = fromJust $ screenIntersect s hor
 
 prop_ScreenIntersect :: Screen -> Horizontal -> Bool
-prop_ScreenIntersect scr hor  = ( (fromJust ( screenIntersect scr hor) - origin scr) `vdot` normalVector scr) =~ 0
+prop_ScreenIntersect scr hor = ((fromJust (screenIntersect scr hor) - origin scr) `vdot` normalVector
+                                                                                           scr) =~ 0
 
 testRelativeCoord :: Screen -> Vector3 -> (Float, Float) -> Test
-testRelativeCoord s p r = TestCase (
-  do
-   let (x,y) = r
-   let rc = relativeCoord s p
-   x @=~? fst rc 
-   y @=~? snd rc
-   )
+testRelativeCoord s p r = TestCase
+                            (do
+                               let (x, y) = r
+                               let rc = relativeCoord s p
+                               x @=~? fst rc
+                               y @=~? snd rc)
 
 testRelativeCoords :: Test
-testRelativeCoords = TestList [ testRelativeCoord s p r | (s,p,r) <-
- [
-  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=1},(0,1)),
-  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=10},(0,10)),
-  (flatNorth1, Vector3{v3x=1,v3y=0,v3z=0},(0,0)),
-  (flatNorth1, Vector3{v3x=1,v3y=1,v3z=0},(1,0)) ]
- ] 
+testRelativeCoords = TestList
+                       [testRelativeCoord s (Vector3 p0 p1 p2) r | (s, (p0, p1, p2), r) <- [ (flatNorth1, (1, 0, 1), (0, 1))
+                                                                                           , (flatNorth1, (1, 0, 10), (0, 10))
+                                                                                           , (flatNorth1, (1, 0, 0), (0, 0))
+                                                                                           , (flatNorth1, (1, 1, 0), (1, 0))
+                                                                                           ]]
 
-propVector :: Vector3 -> Bool
-propVector v = vmag v == 0
 
