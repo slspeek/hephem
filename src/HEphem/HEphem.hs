@@ -19,8 +19,8 @@ import           Data.Vector.Transform.Fancy
 import           Test.QuickCheck
 import           Control.Monad
 
-geoAms :: GeoLocation
-geoAms = GeoLocation (Latitude 52 21 0) (Longitude 4 51 59)
+geoAms :: GeoLoc
+geoAms = GeoLoc (fromDMS 52 21 0) (fromDMS 4 51 59)
 
 brightstartext :: IsString a => a
 brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
@@ -34,8 +34,8 @@ data BrightStar =
        BrightStar
          { bName :: String
          , bHRNo :: Int
-         , bRA :: RA
-         , bDec :: Dec
+         , bRA :: Deg
+         , bDec :: Deg
          , bNotes :: String
          , bMagitude :: Double
          , bUminB :: Maybe Double
@@ -91,7 +91,7 @@ readHRNo = do
   s <- getn 5
   return $ read s
 
-readRA :: ReadP RA
+readRA :: ReadP Deg
 readRA = do
   h <- getn 3
   let hi = read h
@@ -99,7 +99,7 @@ readRA = do
   let mi = read m
   s <- getn 5
   let sf = read s
-  return $ RA hi mi sf
+  return $ fromHMS hi mi sf
 
 replace :: String -> String
 replace = map
@@ -107,7 +107,7 @@ replace = map
                      then ' '
                      else c)
 
-readDec :: ReadP Dec
+readDec :: ReadP Deg
 readDec = do
   h <- getn 5
   let h' = replace h
@@ -116,7 +116,7 @@ readDec = do
   let mi = read m
   s <- getn 3
   let sf = read s
-  return $ Dec hi mi sf
+  return $ fromDMS hi mi sf
 
 readNotes :: ReadP String
 readNotes = getn 8
@@ -141,23 +141,8 @@ readBminV = do
 readSpectralType :: ReadP String
 readSpectralType = many1 get
 
-bEquatorial :: BrightStar -> Equatorial
-bEquatorial b = Equatorial (bRA b) (bDec b)
-
-class HasAngle a where
-  angle :: a -> Double
-
-torad :: Int -> Int -> Double -> Double
-torad d m s = deg2rad $ todec d m s
-
-deg2rad :: Double -> Double
-deg2rad d = pi / 180 * d
-
-rad2deg :: Double -> Double
-rad2deg r = 180 / pi * r
-
-todec :: Int -> Int -> Double -> Double
-todec d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
+bEquatorial :: BrightStar -> EqPos
+bEquatorial b = EqPos (bRA b) (bDec b)
 
 class AEq a where
   (=~) :: a -> a -> Bool
@@ -165,12 +150,10 @@ class AEq a where
 instance AEq Double where
   x =~ y = abs (x - y) < (1.0e-8 :: Double)
 
-instance AEq Horizontal where
-  x =~ y = abs (xaz - yaz) < d && abs (xa - ya) < d
+instance AEq HorPos where
+  x =~ y = abs (hAzimuth x - hAzimuth y) < d && abs (hAltitude x - hAltitude y) < d
     where
-      Horizontal (Azimuth xaz) (Altitude xa) = x
-      Horizontal (Azimuth yaz) (Altitude ya) = y
-      d = 0.1 :: Double
+      d = 0.1 :: Degrees Double
 
 instance AEq Vector3 where
   v =~ w = abs (v3x v - v3x w) < d &&
@@ -182,77 +165,49 @@ instance AEq Vector3 where
 instance AEq Float where
   x =~ y = abs (x - y) < (1.0e-4 :: Float)
 
-{-instance AEq (Vector3, Vector3) where-}
-{-v =~ w = fst v =~ fst w && snd v =~ snvd w-}
-data GeoLocation = GeoLocation Latitude Longitude
+type Deg = Degrees Double
+
+instance (AEq a) => AEq (Degrees a) where
+  (Degrees x) =~ (Degrees y) = x =~ y
+
+instance (AEq a) => AEq (Radians a) where
+  (Radians x) =~ (Radians y) = x =~ y
+
+fromDMS :: Int -> Int -> Double -> Deg
+fromDMS d m s = Degrees $ todec d m s
+
+fromHMS :: Int -> Int -> Double -> Deg
+fromHMS h m s = 15.0 * dhours
+  where
+    dhours = fromDMS h m s
+
+todec :: (Fractional a, Integral a1, Integral a2) => a1 -> a2 -> a -> a
+todec d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
+
+data GeoLoc = GeoLoc { gLatitude,gLongitude :: Deg }
   deriving (Eq, Show)
 
-data Latitude = Latitude Int Int Double
+data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)
 
-instance HasAngle Latitude where
-  angle (Latitude d m s) = torad d m s
-
-data Longitude = Longitude Int Int Double
+data HorPos = HorPos { hAzimuth,hAltitude :: Deg }
   deriving (Eq, Show)
-
-data Equatorial = Equatorial RA Dec
-  deriving (Eq, Show)
-
-data RA = RA Int Int Double
-  deriving (Eq, Show)
-
-instance HasAngle RA where
-  angle (RA h m s) = deg2rad (15 * todec h m s)
-
-data Dec = Dec Int Int Double
-  deriving (Eq, Show)
-
-instance HasAngle Dec where
-  angle (Dec d m s) = torad d m s
-
-data Horizontal = Horizontal Azimuth Altitude
-  deriving (Eq, Show)
-
-data Azimuth = Azimuth Double
-  deriving (Eq, Show)
-
-instance HasAngle Azimuth where
-  angle (Azimuth az) = deg2rad az
-
-data Altitude = Altitude Double
-  deriving (Eq, Show)
-
-instance HasAngle Altitude where
-  angle (Altitude h) = deg2rad h
 
 instance Arbitrary Screen where
-  arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (\x -> x > 1))
+  arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
 
-instance Arbitrary Horizontal where
-  arbitrary = liftM2 Horizontal arbitrary arbitrary
-
-instance Arbitrary Azimuth where
-  arbitrary = liftM Azimuth (suchThat arbitrary (\x -> x >= 0 && x <= 360))
-
-instance Arbitrary Altitude where
-  arbitrary = liftM Altitude (suchThat arbitrary (\x -> x >= 0 && x < 90))
-
-instance Arbitrary Vector3 where
-  arbitrary = liftM3 Vector3 arbitrary arbitrary arbitrary
-
-rA :: Equatorial -> Double
-rA (Equatorial ra _) = angle ra
-
-dec :: Equatorial -> Double
-dec (Equatorial _ d) = angle d
+instance Arbitrary HorPos where
+  arbitrary = do
+    az <- suchThat arbitrary (\x -> x >= 0 && x <= 360)
+    al <- suchThat arbitrary (\x -> x >= 0 && x <= 90)
+    return $ HorPos (Degrees az) (Degrees al)
 
 fracDays :: UTCTime -> Double
 fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
                                                                    (toRational (utctDayTime u)) / 86400)
 
-siderealtime :: UTCTime -> Double
-siderealtime utc = (18.697374558 + 24.06570982441908 * d) `mod'` 24
+siderealtime :: UTCTime -> Deg
+siderealtime utc = Degrees $ 15 * sidtimeDecimalHours
   where
     d
     {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays utc -
@@ -260,15 +215,16 @@ siderealtime utc = (18.697374558 + 24.06570982441908 * d) `mod'` 24
                                                                                      time20000101 -
                                                                                    0.5
     time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
+    sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
 
-currentSiderealtime :: IO Double
+currentSiderealtime :: IO Deg
 currentSiderealtime = siderealtime <$> getCurrentTime
 
-currentLocalSiderealtime :: Longitude -> IO Double
+currentLocalSiderealtime :: GeoLoc -> IO Deg
 currentLocalSiderealtime l = localSiderealtime l <$> getCurrentTime
 
-toMinutesSeconds :: Double -> (Int, Int, Int)
-toMinutesSeconds d = (i, m, s)
+toMinutesSeconds :: Deg -> (Int, Int, Int)
+toMinutesSeconds (Degrees d) = (i, m, s)
   where
     i = floor d
     r = d - fromIntegral i
@@ -276,68 +232,65 @@ toMinutesSeconds d = (i, m, s)
     r' = r - fromIntegral m * (1 / 60)
     s = r' `div'` (1 / 3600)
 
-localSiderealtime :: Longitude -> UTCTime -> Double
-localSiderealtime (Longitude d m s) utc = (siderealtime utc + todec d m s / 15) `mod'` 24
+localSiderealtime :: GeoLoc -> UTCTime -> Deg
+localSiderealtime (GeoLoc _ long) utc = Degrees $ lst `mod'` 360
+  where
+    (Degrees lst) = siderealtime utc + long
 
 {--| Given cos A and sin A solve A --}
-solveAngle :: Double -> Double -> Double
+solveAngle :: Double -> Double -> Radians Double
 solveAngle c s
-  | s > 0 = acos c
-  | c > 0 = 2 * pi + asin s
-  | otherwise = 2 * pi - acos c
+  | s > 0 = arccosine c
+  | c > 0 = Radians (2 * pi) + arcsine s
+  | otherwise = Radians (2 * pi) - arccosine c
 
-toHorizontalCoord :: Double -> Latitude -> Equatorial -> Horizontal
-toHorizontalCoord lst fi (Equatorial ra d) = Horizontal (Azimuth az) (Altitude a)
+toHorPosCoord :: Deg -> GeoLoc -> EqPos -> HorPos
+toHorPosCoord lst (GeoLoc fi _) (EqPos ra d) = HorPos az al
   where
-    lstr = deg2rad $ 15.0 * lst
-    lha = lstr - angle ra
-    dr = angle d
-    fir = angle fi
-    ar = asin $ sin dr * sin fir + cos dr * cos fir * cos lha
-    azy = -sin lha * cos dr / cos ar
-    azx = (sin dr - sin fir * sin ar) / (cos fir * cos ar)
-    azr = solveAngle azx azy
-    a = rad2deg ar
-    az = rad2deg azr
+    lha = lst - ra
+    al = arcsine $ sine d * sine fi + cosine d * cosine fi * cosine lha
+    azy = -sine lha * cosine d / cosine al
+    azx = (sine d - sine fi * sine al) / (cosine fi * cosine al)
+    az = degrees $ solveAngle azx azy
 
-horizontal :: GeoLocation -> UTCTime -> BrightStar -> (BrightStar, Horizontal)
-horizontal (GeoLocation lat long) utc b = (b, toHorizontalCoord lst lat (bEquatorial b))
+horizontal :: GeoLoc -> UTCTime -> BrightStar -> (BrightStar, HorPos)
+horizontal loc utc b = (b, toHorPosCoord lst loc (bEquatorial b))
   where
-    lst = localSiderealtime long utc
+    lst = localSiderealtime loc utc
 
-data Rectangle = Rectangle Azimuth Azimuth Altitude Altitude
+data Rectangle = Rectangle Deg Deg Deg Deg
 
-visibleIn :: GeoLocation -> Rectangle -> IO [(BrightStar, Horizontal)]
-visibleIn geo (Rectangle (Azimuth minAz) (Azimuth maxAz) (Altitude minAl) (Altitude maxAl)) =
+visibleIn :: GeoLoc -> Rectangle -> IO [(BrightStar, HorPos)]
+visibleIn geo (Rectangle minAz maxAz minAl maxAl) =
   do
     t <- getCurrentTime
     let f = horizontal geo t
     return $ filter p (map f brightstarlist)
 
   where
-    p (_, Horizontal (Azimuth a) (Altitude h)) = (minAz <= a) &&
-                                                 (maxAz >= a) &&
-                                                 (minAl <= h) &&
-                                                 (maxAl >= h)
+    p (_, HorPos a h) = (minAz <= a) &&
+                        (maxAz >= a) &&
+                        (minAl <= h) &&
+                        (maxAl >= h)
 
-pretty :: (BrightStar, Horizontal) -> String
-pretty (b, Horizontal (Azimuth a) (Altitude h)) = bName b ++
-                                                  " " ++
-                                                  show (bMagitude b) ++
-                                                  " Azi: " ++
-                                                  show d ++
-                                                  "*" ++
-                                                  show m ++
-                                                  "\"" ++
-                                                  show s ++
-                                                  "'" ++
-                                                  " Alt: " ++
-                                                  show d' ++
-                                                  "*" ++
-                                                  show m' ++
-                                                  "\"" ++
-                                                  show s' ++
-                                                  "'"
+pretty :: (BrightStar, HorPos) -> String
+pretty (b, HorPos a h) = bName b ++
+                         " " ++
+                         show (bMagitude b) ++
+                         " Azi: " ++
+                         show d ++
+                         "*" ++
+                         show m ++
+                         "\"" ++
+                         show s ++
+                         "'" ++
+                         " Alt: " ++
+                         show d' ++
+                         "*" ++
+                         show m' ++
+                         "\"" ++
+                         show s' ++
+                         "'"
   where
     (d, m, s) = toMinutesSeconds a
     (d', m', s') = toMinutesSeconds h
@@ -347,22 +300,22 @@ data World = World { wStars :: [BrightStar], wScreen :: Screen }
   deriving (Eq, Show)
 
 {-- Viewing screen has a direction and distance --}
-data Screen = Screen Horizontal Double
+data Screen = Screen HorPos Double
   deriving (Eq, Show)
 
-cartesian :: Horizontal -> Vector3
-cartesian (Horizontal az al) = Vector3
-  { v3x = sin incl * cos (angle az)
-  , v3y = sin incl * sin (angle az)
-  , v3z = cos incl
+cartesian :: HorPos -> Vector3
+cartesian (HorPos az al) = Vector3
+  { v3x = sine incl * cosine az
+  , v3y = sine incl * sine az
+  , v3z = cosine incl
   }
   where
-    incl = (pi / 2) - angle al
+    incl = Degrees 90 - al
 
-screenCoord :: Screen -> Horizontal -> Maybe P.Point
-screenCoord s (Horizontal (Azimuth az) (Altitude h))
+screenCoord :: Screen -> HorPos -> Maybe P.Point
+screenCoord s (HorPos az h)
   | h > 0 =
-      let v = screenIntersect s (Horizontal (Azimuth az) (Altitude h))
+      let v = screenIntersect s (HorPos az h)
       in case v of
         Just p  -> Just $ relativeCoord s p
         Nothing -> Nothing
@@ -398,15 +351,15 @@ normalVector :: Screen -> Vector3
 normalVector (Screen vdir _) = cartesian vdir
 
 grid :: Screen -> (Vector3, Vector3)
-grid (Screen (Horizontal az al) _) = (r x, r y)
+grid (Screen (HorPos az al) _) = (r x, r y)
   where
     x = Vector3 0 1 0
     y = Vector3 0 0 1
-    r1 = rotateT AxisX AxisZ (Radians (angle al))
-    r2 = rotateT AxisX AxisY (Radians (angle az))
+    r1 = rotateT AxisX AxisZ (radians al)
+    r2 = rotateT AxisX AxisY (radians az)
     r v = transformP3 r2 (transformP3 r1 v)
 
-screenIntersect :: Screen -> Horizontal -> Maybe Vector3
+screenIntersect :: Screen -> HorPos -> Maybe Vector3
 screenIntersect s hor = if ln /= 0 && f > 0
                           then Just $ f *| lv
                           else Nothing
@@ -414,5 +367,4 @@ screenIntersect s hor = if ln /= 0 && f > 0
     lv = cartesian hor
     ln = lv `vdot` normalVector s
     f = (origin s `vdot` normalVector s) / ln
-    
     

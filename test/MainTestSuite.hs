@@ -23,7 +23,7 @@ tests =
      ,testGroup "sidereal time 2" $ hUnitTestToTests testSiderealtime'
      ,testGroup "RA angle" $ hUnitTestToTests testRAAngle
      ,testGroup "solve angle" $ hUnitTestToTests testSolveAngle
-     ,testGroup "coord conversion" $ hUnitTestToTests testToHorizontal
+     ,testGroup "coord conversion" $ hUnitTestToTests testToHorPos
      ,testGroup "grid generation" $ hUnitTestToTests testGrids
      ,testGroup "screen intersection" $ hUnitTestToTests testScreenIntersects
      ,testGroup "relative coord" $ hUnitTestToTests testRelativeCoords

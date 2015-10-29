@@ -12,6 +12,7 @@ import           Data.Time.Clock
 import           Data.Vector.V3
 import           Data.Vector.Class
 import           GHC.Float
+import           Data.Angle
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
 (@=~?) expected actual = expected =~ actual @? assertionMsg
@@ -25,10 +26,10 @@ parseStar = fst . last . readP_to_S star
 mirfakLine :: String
 mirfakLine = "  33   alpha    Per  1017   3 25 29     +49 54 50   das     1.79 +0.37 +0.48 F5 Ib"
 
-betelgeuseLine :: [Char]
+betelgeuseLine :: String
 betelgeuseLine = "  58   alpha    Ori  2061   5 56 02.0   + 7 24 27   ad6     0.50 +2.06 +1.85 M1-M2 Ia-Iab"
 
-pole :: [Char]
+pole :: String
 pole = "          NorthPole  0000   0 00 00      90 00 10   das     1.79 +0.37 +0.48 F5 Ib"
 
 betelgeuse :: BrightStar
@@ -57,31 +58,28 @@ testParseMirfak = TestCase
 
 testParseDeclination :: Test
 testParseDeclination = TestCase
-                         (let (Dec d m s) = (fst . last) $ readP_to_S readDec decl
-                          in do
-                            d @?= 49
-                            m @?= 54
-                            54 @=~? s)
+                         (let (Degrees d) = (fst . last) $ readP_to_S readDec decl
+                          in d @?= 49.915 )
 
 testRAAngle :: Test
-testRAAngle = TestCase (angle (RA 12 30 30) @=~? ((12 + 30 / 60 + 30 / 3600) * pi * 15 / 180))
+testRAAngle = TestCase (radians ( fromHMS 12 30 30) @=~? Radians ((12 + 30 / 60 + 30 / 3600) * pi * 15 / 180))
 
 testSiderealtime :: Test
-testSiderealtime = TestCase (toMinutesSeconds (siderealtime utc) @?= (1, 48, 36))
+testSiderealtime = TestCase ((abs (fromHMS 1 48 36.7204 - siderealtime utc) < 0.01) @?= True )
   where
     utc = UTCTime { utctDay = fromGregorian 2015 10 19, utctDayTime = secondsToDiffTime 0 }
 
 testSiderealtime' :: Test
-testSiderealtime' = TestCase (toMinutesSeconds (siderealtime utc) @?= (0, 37, 38))
+testSiderealtime' = TestCase (abs(siderealtime utc - fromHMS 0 37 38) < 0.01 @?= True)
   where
     utc = UTCTime { utctDay = fromGregorian 2015 10 1, utctDayTime = secondsToDiffTime 0 }
 
-testToHorizontalCoord :: BrightStar -> UTCTime -> Horizontal -> Test
-testToHorizontalCoord bstar utc hor = TestCase (snd (horizontal geoAms utc bstar) @=~? hor)
+testToHorPosCoord :: BrightStar -> UTCTime -> HorPos -> Test
+testToHorPosCoord bstar utc hor = TestCase (snd (horizontal geoAms utc bstar) @=~? hor)
 
 testSolveAngle :: Test
 testSolveAngle = TestList
-                   [TestCase (solveAngle c s @=~? a) | (c, s, a) <- [ (b, b, qp)
+                   [TestCase (solveAngle c s @=~? Radians a) | (c, s, a) <- [ (b, b, qp)
                                                                     , (-b, b, pi - qp)
                                                                     , (-b, -b, pi + qp)
                                                                     , (b, -b, 2 * pi - qp)
@@ -90,9 +88,9 @@ testSolveAngle = TestList
     b = sqrt 2.0 / 2
     qp = pi / 4
 
-testToHorizontal :: Test
-testToHorizontal = TestList
-                     [testToHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <- [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
+testToHorPos :: Test
+testToHorPos = TestList
+                     [testToHorPosCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <- [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
                                                                                            , (mirfak, 1, ((130, 17, 32), (86, 21, 34)))
                                                                                            , (mirfak, 3, ((271, 40, 38), (73, 44, 8)))
                                                                                            , (mirfak, 4, ((280, 57, 11), (64, 37, 3)))
@@ -108,17 +106,16 @@ testToHorizontal = TestList
       { utctDay = fromGregorian 2015 10 19
       , utctDayTime = secondsToDiffTime (x * 3600)
       }
-    mkHorzontal ((d, m, s), (d', m', s')) = Horizontal (Azimuth (todec d m s))
-                                              (Altitude (todec d' m' s'))
+    mkHorzontal ((d, m, s), (d', m', s')) = HorPos  (fromDMS d m s) (fromDMS d' m' s')
 
-flatNorth :: Horizontal
-flatNorth = Horizontal (Azimuth 0) (Altitude 0)
+flatNorth :: HorPos
+flatNorth = HorPos (Degrees 0) (Degrees 0)
 
-zenithNorth :: Horizontal
-zenithNorth = Horizontal (Azimuth 0) (Altitude 90)
+zenithNorth :: HorPos
+zenithNorth = HorPos (Degrees 0) (Degrees 90)
 
-flatEast :: Horizontal
-flatEast = Horizontal (Azimuth 90) (Altitude 0)
+flatEast :: HorPos
+flatEast = HorPos (Degrees 90) (Degrees 0)
 
 flatNorth1 :: Screen
 flatNorth1 = Screen flatNorth 1
@@ -129,19 +126,19 @@ flatEast1 = Screen flatEast 1
 zenithNorth1 :: Screen
 zenithNorth1 = Screen zenithNorth 1
 
-north :: Horizontal
-north = Horizontal (Azimuth 0) (Altitude 45)
+north :: HorPos
+north = HorPos (Degrees 0) (Degrees 45)
 
 north1 :: Screen
 north1 = Screen north 1
 
-northEast :: Horizontal
-northEast = Horizontal (Azimuth 45) (Altitude 45)
+northEast :: HorPos
+northEast = HorPos (Degrees 45) (Degrees 45)
 
 northEast1 :: Screen
 northEast1 = Screen northEast 1
 
-testCartesian :: Horizontal -> Vector3 -> Test
+testCartesian :: HorPos -> Vector3 -> Test
 testCartesian hor v = TestCase $ v @=~? cartesian hor
 
 testCartesians :: Test
@@ -173,7 +170,7 @@ testGrids = TestList
                                                                                                      , v3y = 0
                                                                                                      , v3z = 1
                                                                                                      }))
-                                            , (flatEast1, (Vector3 { v3x = (-1), v3y = 0, v3z = 0 }, Vector3
+                                            , (flatEast1, (Vector3 { v3x = -1, v3y = 0, v3z = 0 }, Vector3
                                                                                                        { v3x = 0
                                                                                                        , v3y = 0
                                                                                                        , v3z = 1
@@ -195,13 +192,13 @@ testGrids = TestList
                                                                    , v3z = sqrt 2 / 2
                                                                    }))
                                             , (zenithNorth1, (Vector3 { v3x = 0, v3y = 1, v3z = 0 }, Vector3
-                                                                                                       { v3x = (-1)
+                                                                                                       { v3x = -1
                                                                                                        , v3y = 0
                                                                                                        , v3z = 0
                                                                                                        }))
                                             ]]
 
-testScreenIntersect :: Screen -> Horizontal -> Vector3 -> Test
+testScreenIntersect :: Screen -> HorPos -> Vector3 -> Test
 testScreenIntersect scr hor p = TestCase (p @=~? fromJust (screenIntersect scr hor))
 
 testScreenIntersects :: Test
@@ -216,11 +213,11 @@ testScreenIntersects = TestList
                                                                                                    , v3y = 0
                                                                                                    , v3z = 1
                                                                                                    })
-                                                                           , (flatNorth1, (Horizontal
-                                                                                             (Azimuth
+                                                                           , (flatNorth1, HorPos
+                                                                                             (Degrees
                                                                                                 45)
-                                                                                             (Altitude
-                                                                                                0)), Vector3
+                                                                                             (Degrees
+                                                                                                0), Vector3
                                                                                                        { v3x = 1
                                                                                                        , v3y = 1
                                                                                                        , v3z = 0
@@ -255,7 +252,7 @@ prop_Grid_Orthogonal s = (x `vdot` y) =~ 0 && (x `vdot` snv) =~ 0 && (y `vdot` s
     (x, y) = grid s
     snv = normalVector s
 
-prop_ScreenCoord :: Screen -> Horizontal -> Property
+prop_ScreenCoord :: Screen -> HorPos -> Property
 prop_ScreenCoord s hor = isJust (screenCoord s hor) && isJust (screenIntersect s hor)
                                                        ==> (vmag
                                                               ((origin s +
@@ -266,9 +263,10 @@ prop_ScreenCoord s hor = isJust (screenCoord s hor) && isJust (screenIntersect s
     (v, w) = grid s
     i = fromJust $ screenIntersect s hor
 
-prop_ScreenIntersect :: Screen -> Horizontal -> Bool
-prop_ScreenIntersect scr hor = ((fromJust (screenIntersect scr hor) - origin scr) `vdot` normalVector
-                                                                                           scr) =~ 0
+prop_ScreenIntersect :: Screen -> HorPos -> Property 
+prop_ScreenIntersect scr hor = isJust ints ==> ((fromJust ints - origin scr) `vdot` normalVector scr) =~ 0
+  where
+    ints = screenIntersect scr hor
 
 testRelativeCoord :: Screen -> Vector3 -> (Float, Float) -> Test
 testRelativeCoord s p r = TestCase
