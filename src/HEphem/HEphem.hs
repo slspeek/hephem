@@ -18,6 +18,8 @@ import           Data.Vector.Transform.T3
 import           Data.Vector.Transform.Fancy
 import           Test.QuickCheck
 import           Control.Monad
+import           Control.Arrow
+import           Data.Maybe
 
 geoAms :: GeoLoc
 geoAms = GeoLoc (fromDMS 52 21 0) (fromDMS 4 51 59)
@@ -317,30 +319,34 @@ screenCoord s (HorPos az h)
   | h > 0 =
       let v = screenIntersect s (HorPos az h)
       in case v of
-        Just p  -> Just $ relativeCoord s p
+        Just p  -> relativeCoord s p
         Nothing -> Nothing
   | otherwise = Nothing
 
-relativeCoord :: Screen -> Vector3 -> P.Point
-relativeCoord s w = solveLinearEq (grid s) v
+relativeCoord :: Screen -> Vector3 -> Maybe P.Point
+relativeCoord s w = fmap (double2Float *** double2Float) (solveLinearEq (grid s) v)
   where
     v = w - origin s
 
-solveLinearEq :: (Vector3, Vector3) -> Vector3 -> P.Point
-solveLinearEq (v, w) a = (double2Float p, double2Float q)
+solveLinearEq :: (Vector3, Vector3) -> Vector3 -> Maybe (Scalar, Scalar)
+solveLinearEq (v, w) a = listToMaybe [z | z <- nums
+                                        , dis z < 0.1]
   where
-    pacc
-      | abs (v3x v) >= abs (v3y v) && abs (v3x v) >= abs (v3z v) = v3x
-      | abs (v3y v) >= abs (v3x v) && abs (v3y v) >= abs (v3z v) = v3y
-      | otherwise = v3z
+    dis (x, y) = vmag $ (x *| v + y *| w) - a
+    nums = [(x, y) | (x, y) <- l
+                   , isNum x
+                   , isNum y]
+    l = [useToSolve accA accB (v, w) a | accA <- [v3x, v3y, v3z]
+                                       , accB <- [v3x, v3y, v3z]
+                                       , accA dum /= accB dum]
+    dum = Vector3 0 1 2
+    isNum x = not (isNaN x) && not (isInfinite x)
 
-    qacc
-      | abs (v3x w) >= abs (v3y w) && abs (v3x w) >= abs (v3z w) = v3x
-      | abs (v3y w) >= abs (v3x w) && abs (v3y w) >= abs (v3z w) = v3y
-      | otherwise = v3z
-
-    q = (qacc a * pacc v - pacc a * qacc v) / (qacc w * pacc v + pacc w * qacc v)
-    p = (pacc a - q * pacc w) / pacc v
+useToSolve :: Fractional t1 => (t -> t1) -> (t -> t1) -> (t, t) -> t -> (t1, t1)
+useToSolve accA accB (v, w) a = (p, q)
+  where
+    q = (accB a * accA v - accA a * accB v) / (accB w * accA v + accA w * accB v)
+    p = (accA a - q * accA w) / accA v
 
 origin :: Screen -> Vector3
 origin (Screen vdir dist) =

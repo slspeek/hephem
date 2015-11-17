@@ -12,9 +12,9 @@ north = Screen (HorPos (Degrees 0) (Degrees 45)) 100
 main :: IO ()
 main = do
   putStrLn $ "HEphem  Copyright (C) 2015  Steven L. Speek\n" ++
-    "This program comes with ABSOLUTELY NO WARRANTY\n" ++
-    "This is free software, and you are welcome to redistribute it\n" ++
-    "under certain conditions"
+             "This program comes with ABSOLUTELY NO WARRANTY\n" ++
+             "This is free software, and you are welcome to redistribute it\n" ++
+             "under certain conditions"
   playIO
     (InWindow "HEphem" (1024, 768) (10, 10))
     black
@@ -36,7 +36,7 @@ pictureWorld (World bs scr) =
   in do
     utc <- getCurrentTime
     let stars = Pictures [pictureStar s utc | s <- bs]
-    let (Screen (HorPos  az  h) d) = scr
+    let (Screen (HorPos az h) d) = scr
     let dashboard = Color red $ Translate (-500) (-360) $ Scale 0.1 0.1 $ Text $ "A: " ++
                                                                                  show az ++
                                                                                  " h: " ++
@@ -49,29 +49,12 @@ starColor :: Color
 starColor = white
 
 eventHandler :: Event -> World -> IO World
-eventHandler ev (World bs (Screen (HorPos  az  h) d)) =
+eventHandler ev (World bs (Screen (HorPos az h) d)) =
   case ev of
-    EventKey (SpecialKey KeyLeft) Up _ _ -> return $ World bs
-                                                       (Screen
-                                                          (HorPos  (-3 + az)
-                                                              h)
-                                                          d)
-    EventKey (SpecialKey KeyRight) Up _ _ -> return $ World bs
-                                                        (Screen
-                                                           (HorPos  (3 + az)
-                                                               h)
-                                                           d)
-    EventKey (SpecialKey KeyUp) Up _ _ -> return $ World bs
-                                                     (Screen
-                                                        (HorPos  az ( h + 3))
-                                                        d)
-    EventKey (SpecialKey KeyDown) Up _ _ -> return $ World bs
-                                                       (Screen
-                                                          (HorPos  az
-                                                             ( h - 3))
-                                                          d)
-    EventKey (Char 'w') Up _ _ -> return $ World bs
-                                             (Screen (HorPos  az  h) (d * 1.1))
-    EventKey (Char 's') Up _ _ -> return $ World bs
-                                             (Screen (HorPos az h) (d / 1.1))
+    EventKey (SpecialKey KeyLeft) Up _ _  -> return $ World bs (Screen (HorPos (-3 + az) h) d)
+    EventKey (SpecialKey KeyRight) Up _ _ -> return $ World bs (Screen (HorPos (3 + az) h) d)
+    EventKey (SpecialKey KeyUp) Up _ _    -> return $ World bs (Screen (HorPos az (h + 3)) d)
+    EventKey (SpecialKey KeyDown) Up _ _  -> return $ World bs (Screen (HorPos az (h - 3)) d)
+    EventKey (Char 'w') Up _ _            -> return $ World bs (Screen (HorPos az h) (d * 1.1))
+    EventKey (Char 's') Up _ _            -> return $ World bs (Screen (HorPos az h) (d / 1.1))
     _ -> return $  World  bs (Screen (HorPos az  h) d) 

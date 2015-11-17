@@ -57,20 +57,21 @@ testParseMirfak = TestCase
                        bBminV pers @=~? 0.48)
 
 testParseDeclination :: Test
-testParseDeclination = TestCase
-                         (let (Degrees d) = (fst . last) $ readP_to_S readDec decl
-                          in d @?= 49.915 )
+testParseDeclination = TestCase (let (Degrees d) = (fst . last) $ readP_to_S readDec decl
+                                 in d @?= 49.915)
 
 testRAAngle :: Test
-testRAAngle = TestCase (radians ( fromHMS 12 30 30) @=~? Radians ((12 + 30 / 60 + 30 / 3600) * pi * 15 / 180))
+testRAAngle = TestCase
+                (radians (fromHMS 12 30 30) @=~? Radians
+                                                   ((12 + 30 / 60 + 30 / 3600) * pi * 15 / 180))
 
 testSiderealtime :: Test
-testSiderealtime = TestCase ((abs (fromHMS 1 48 36.7204 - siderealtime utc) < 0.01) @?= True )
+testSiderealtime = TestCase ((abs (fromHMS 1 48 36.7204 - siderealtime utc) < 1.0e-2) @?= True)
   where
     utc = UTCTime { utctDay = fromGregorian 2015 10 19, utctDayTime = secondsToDiffTime 0 }
 
 testSiderealtime' :: Test
-testSiderealtime' = TestCase (abs(siderealtime utc - fromHMS 0 37 38) < 0.01 @?= True)
+testSiderealtime' = TestCase (abs (siderealtime utc - fromHMS 0 37 38) < 1.0e-2 @?= True)
   where
     utc = UTCTime { utctDay = fromGregorian 2015 10 1, utctDayTime = secondsToDiffTime 0 }
 
@@ -80,33 +81,33 @@ testToHorPosCoord bstar utc hor = TestCase (snd (horizontal geoAms utc bstar) @=
 testSolveAngle :: Test
 testSolveAngle = TestList
                    [TestCase (solveAngle c s @=~? Radians a) | (c, s, a) <- [ (b, b, qp)
-                                                                    , (-b, b, pi - qp)
-                                                                    , (-b, -b, pi + qp)
-                                                                    , (b, -b, 2 * pi - qp)
-                                                                    ]]
+                                                                            , (-b, b, pi - qp)
+                                                                            , (-b, -b, pi + qp)
+                                                                            , (b, -b, 2 * pi - qp)
+                                                                            ]]
   where
     b = sqrt 2.0 / 2
     qp = pi / 4
 
 testToHorPos :: Test
 testToHorPos = TestList
-                     [testToHorPosCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <- [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
-                                                                                           , (mirfak, 1, ((130, 17, 32), (86, 21, 34)))
-                                                                                           , (mirfak, 3, ((271, 40, 38), (73, 44, 8)))
-                                                                                           , (mirfak, 4, ((280, 57, 11), (64, 37, 3)))
-                                                                                           , (mirfak, 6, ((296, 16, 44), (47, 15, 58)))
-                                                                                           , (betelgeuse, 0, ((112, 46, 12), (25, 36, 6)))
-                                                                                           , (betelgeuse, 1, ((127, 18, 57), (33, 32, 49)))
-                                                                                           , (betelgeuse, 2, ((144, 10, 3), (39, 57, 37)))
-                                                                                           , (betelgeuse, 3, ((163, 31, 58), (44, 1, 4)))
-                                                                                           , (northskypole, 0, ((0, 0, 0), (52, 20, 0)))
-                                                                                           ]]
+                 [testToHorPosCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <- [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
+                                                                                   , (mirfak, 1, ((130, 17, 32), (86, 21, 34)))
+                                                                                   , (mirfak, 3, ((271, 40, 38), (73, 44, 8)))
+                                                                                   , (mirfak, 4, ((280, 57, 11), (64, 37, 3)))
+                                                                                   , (mirfak, 6, ((296, 16, 44), (47, 15, 58)))
+                                                                                   , (betelgeuse, 0, ((112, 46, 12), (25, 36, 6)))
+                                                                                   , (betelgeuse, 1, ((127, 18, 57), (33, 32, 49)))
+                                                                                   , (betelgeuse, 2, ((144, 10, 3), (39, 57, 37)))
+                                                                                   , (betelgeuse, 3, ((163, 31, 58), (44, 1, 4)))
+                                                                                   , (northskypole, 0, ((0, 0, 0), (52, 20, 0)))
+                                                                                   ]]
   where
     mkUTCTime x = UTCTime
       { utctDay = fromGregorian 2015 10 19
       , utctDayTime = secondsToDiffTime (x * 3600)
       }
-    mkHorzontal ((d, m, s), (d', m', s')) = HorPos  (fromDMS d m s) (fromDMS d' m' s')
+    mkHorzontal ((d, m, s), (d', m', s')) = HorPos (fromDMS d m s) (fromDMS d' m' s')
 
 flatNorth :: HorPos
 flatNorth = HorPos (Degrees 0) (Degrees 0)
@@ -171,10 +172,10 @@ testGrids = TestList
                                                                                                      , v3z = 1
                                                                                                      }))
                                             , (flatEast1, (Vector3 { v3x = -1, v3y = 0, v3z = 0 }, Vector3
-                                                                                                       { v3x = 0
-                                                                                                       , v3y = 0
-                                                                                                       , v3z = 1
-                                                                                                       }))
+                                                                                                     { v3x = 0
+                                                                                                     , v3y = 0
+                                                                                                     , v3z = 1
+                                                                                                     }))
                                             , (north1, (Vector3 { v3x = 0, v3y = 1, v3z = 0 }, Vector3
                                                                                                  { v3x = -sqrt
                                                                                                             2 / 2
@@ -214,14 +215,14 @@ testScreenIntersects = TestList
                                                                                                    , v3z = 1
                                                                                                    })
                                                                            , (flatNorth1, HorPos
-                                                                                             (Degrees
-                                                                                                45)
-                                                                                             (Degrees
-                                                                                                0), Vector3
-                                                                                                       { v3x = 1
-                                                                                                       , v3y = 1
-                                                                                                       , v3z = 0
-                                                                                                       })
+                                                                                            (Degrees
+                                                                                               45)
+                                                                                            (Degrees
+                                                                                               0), Vector3
+                                                                                                     { v3x = 1
+                                                                                                     , v3y = 1
+                                                                                                     , v3z = 0
+                                                                                                     })
                                                                            , (flatNorth1, northEast, Vector3
                                                                                                        { v3x = 1
                                                                                                        , v3y = 1
@@ -263,7 +264,7 @@ prop_ScreenCoord s hor = isJust (screenCoord s hor) && isJust (screenIntersect s
     (v, w) = grid s
     i = fromJust $ screenIntersect s hor
 
-prop_ScreenIntersect :: Screen -> HorPos -> Property 
+prop_ScreenIntersect :: Screen -> HorPos -> Property
 prop_ScreenIntersect scr hor = isJust ints ==> ((fromJust ints - origin scr) `vdot` normalVector scr) =~ 0
   where
     ints = screenIntersect scr hor
@@ -272,7 +273,7 @@ testRelativeCoord :: Screen -> Vector3 -> (Float, Float) -> Test
 testRelativeCoord s p r = TestCase
                             (do
                                let (x, y) = r
-                               let rc = relativeCoord s p
+                               let rc = fromJust $ relativeCoord s p
                                x @=~? fst rc
                                y @=~? snd rc)
 
@@ -284,4 +285,10 @@ testRelativeCoords = TestList
                                                                                            , (flatNorth1, (1, 1, 0), (1, 0))
                                                                                            ]]
 
+prop_SolveLinear :: Screen -> (Double, Double) -> Bool
+prop_SolveLinear s (x, y) = vmag ((p *| v + q *| w) - i) < 0.1
+  where
+    (v, w) = grid s
+    i = x *| v + y *| w
+    (p, q) = fromJust $ solveLinearEq (v, w) i
 
