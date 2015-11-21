@@ -1,7 +1,5 @@
-module HEphem.UI where 
+module HEphem.UI where
 
-import HEphem.HEphem 
-import HEphem.BSParser
 import qualified Graphics.Gloss.Data.Point as P
 import           GHC.Float
 import           Control.Monad
@@ -11,20 +9,47 @@ import           Test.QuickCheck
 import           Data.Vector.Transform.T3
 import           Data.Vector.V3
 import           Data.Vector.Fancy
-import           Data.Vector.Class 
+import           Data.Vector.Class
 import           Data.Vector.Transform.Fancy
-import Data.Angle
+import           Data.Angle
+import           HEphem.Data
 
 instance Arbitrary Screen where
   arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
 
-{-- For graphical representation --}
+-- | World in the Gloss Game sense
 data World = World { wStars :: [BrightStar], wScreen :: Screen }
   deriving (Eq, Show)
 
 {-- Viewing screen has a direction and distance --}
 data Screen = Screen HorPos Double
   deriving (Eq, Show)
+
+origin :: Screen -> Vector3
+origin (Screen vdir dist) =
+  let snv = cartesian vdir
+  in vnormalise snv |* dist
+
+normalVector :: Screen -> Vector3
+normalVector (Screen vdir _) = cartesian vdir
+
+grid :: Screen -> (Vector3, Vector3)
+grid (Screen (HorPos az al) _) = (r x, r y)
+  where
+    x = Vector3 0 1 0
+    y = Vector3 0 0 1
+    r1 = rotateT AxisX AxisZ (radians al)
+    r2 = rotateT AxisX AxisY (radians az)
+    r v = transformP3 r2 (transformP3 r1 v)
+
+screenIntersect :: Screen -> HorPos -> Maybe Vector3
+screenIntersect s hor = if ln /= 0 && f > 0
+                          then Just $ f *| lv
+                          else Nothing
+  where
+    lv = cartesian hor
+    ln = lv `vdot` normalVector s
+    f = (origin s `vdot` normalVector s) / ln
 
 cartesian :: HorPos -> Vector3
 cartesian (HorPos az al) = Vector3
@@ -69,29 +94,3 @@ useToSolve accA accB (v, w) a = (p, q)
     q = (accB a * accA v - accA a * accB v) / (accB w * accA v + accA w * accB v)
     p = (accA a - q * accA w) / accA v
 
-origin :: Screen -> Vector3
-origin (Screen vdir dist) =
-  let snv = cartesian vdir
-  in vnormalise snv |* dist
-
-normalVector :: Screen -> Vector3
-normalVector (Screen vdir _) = cartesian vdir
-
-grid :: Screen -> (Vector3, Vector3)
-grid (Screen (HorPos az al) _) = (r x, r y)
-  where
-    x = Vector3 0 1 0
-    y = Vector3 0 0 1
-    r1 = rotateT AxisX AxisZ (radians al)
-    r2 = rotateT AxisX AxisY (radians az)
-    r v = transformP3 r2 (transformP3 r1 v)
-
-screenIntersect :: Screen -> HorPos -> Maybe Vector3
-screenIntersect s hor = if ln /= 0 && f > 0
-                          then Just $ f *| lv
-                          else Nothing
-  where
-    lv = cartesian hor
-    ln = lv `vdot` normalVector s
-    f = (origin s `vdot` normalVector s) / ln
-    

@@ -5,18 +5,6 @@ module HEphem.BSParser (
     fromDMS,
     fromHMS,
     brightstarlist,
-    EqPos(EqPos),
-    eRA,
-    eDec,
-    BrightStar,
-    bHRNo,
-    bNotes,
-    bMagitude,
-    bName,
-    bEquatorial,
-    bSpectralType,
-    bBminV,
-    bUminB,
     toMinutesSeconds,
     starReadP,
     readDec,
@@ -27,11 +15,7 @@ import           Data.String
 import           Data.FileEmbed
 import           Data.Angle
 import           Data.Fixed (div')
-
-type Deg = Degrees Double
-
-data EqPos = EqPos { eRA,eDec :: Deg }
-  deriving (Eq, Show)
+import           HEphem.Data
 
 toDecimal :: (Fractional a, Integral a1, Integral a2) => a1 -> a2 -> a -> a
 toDecimal d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
@@ -51,20 +35,6 @@ brightstarlist :: [BrightStar]
 brightstarlist =
   let starlines = (drop 5 . lines) brightstartext
   in map (fst . last . readP_to_S starReadP) starlines
-
-data BrightStar =
-       BrightStar
-         { bName :: String
-         , bHRNo :: Int
-         , bRA :: Deg
-         , bDec :: Deg
-         , bNotes :: String
-         , bMagitude :: Double
-         , bUminB :: Maybe Double
-         , bBminV :: Double
-         , bSpectralType :: String
-         }
-  deriving (Eq, Show)
 
 starReadP :: ReadP BrightStar
 starReadP = do
@@ -162,9 +132,6 @@ readBminV = do
 
 readSpectralType :: ReadP String
 readSpectralType = many1 get
-
-bEquatorial :: BrightStar -> EqPos
-bEquatorial b = EqPos (bRA b) (bDec b)
 
 toMinutesSeconds :: Deg -> (Int, Int, Int)
 toMinutesSeconds (Degrees d) = (i, m, s)

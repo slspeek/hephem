@@ -58,7 +58,10 @@ library
   hs-source-dirs:
       src
   exposed-modules:
+      HEphem.Data
       HEphem.HEphem
+      HEphem.BSParser
+      HEphem.UI
   build-depends:
       base    == 4.*
       ,file-embed >= 0.0.9

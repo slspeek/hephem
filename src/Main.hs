@@ -1,6 +1,7 @@
 module Main where
 
 import           HEphem.HEphem
+import           HEphem.Data
 import           HEphem.UI
 import           HEphem.BSParser
 import           Data.Time.Clock

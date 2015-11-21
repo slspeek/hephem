@@ -5,6 +5,7 @@ module HEphem.HEphemTest where
 import           HEphem.HEphem
 import           HEphem.UI
 import           HEphem.BSParser
+import           HEphem.Data
 import           Text.ParserCombinators.ReadP
 import           Test.HUnit
 import           Test.QuickCheck
