@@ -1,6 +1,8 @@
 module Main where
 
 import           HEphem.HEphem
+import           HEphem.UI
+import           HEphem.BSParser
 import           Data.Time.Clock
 import           Graphics.Gloss.Interface.IO.Game
 import           GHC.Float

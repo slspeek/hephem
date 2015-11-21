@@ -3,6 +3,8 @@
 module HEphem.HEphemTest where
 
 import           HEphem.HEphem
+import           HEphem.UI
+import           HEphem.BSParser
 import           Text.ParserCombinators.ReadP
 import           Test.HUnit
 import           Test.QuickCheck
@@ -21,7 +23,7 @@ import           Data.Angle
                                     "\nActual   : " ++ show actual
 
 parseStar :: String -> BrightStar
-parseStar = fst . last . readP_to_S star
+parseStar = fst . last . readP_to_S starReadP
 
 mirfakLine :: String
 mirfakLine = "  33   alpha    Per  1017   3 25 29     +49 54 50   das     1.79 +0.37 +0.48 F5 Ib"

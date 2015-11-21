@@ -1,150 +1,18 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
 module HEphem.HEphem where
 
-import           Text.ParserCombinators.ReadP
-import           Data.String
-import           Data.FileEmbed
 import           Data.Time.Clock
 import           Data.Time.Calendar
-import           Data.Fixed (mod', div')
+import           Data.Fixed (mod')
 import           Data.Vector.V3
-import           Data.Vector.Class
-import qualified Graphics.Gloss.Data.Point as P
-import           GHC.Float
-import           Data.Vector.Fancy
+import           Data.Vector.Class ()
 import           Data.Angle
-import           Data.Vector.Transform.T3
-import           Data.Vector.Transform.Fancy
+import           HEphem.BSParser
 import           Test.QuickCheck
-import           Control.Monad
-import           Control.Arrow
-import           Data.Maybe
 
 geoAms :: GeoLoc
 geoAms = GeoLoc (fromDMS 52 21 0) (fromDMS 4 51 59)
-
-brightstartext :: IsString a => a
-brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
-
-brightstarlist :: [BrightStar]
-brightstarlist =
-  let starlines = (drop 5 . lines) brightstartext
-  in map (fst . last . readP_to_S star) starlines
-
-data BrightStar =
-       BrightStar
-         { bName :: String
-         , bHRNo :: Int
-         , bRA :: Deg
-         , bDec :: Deg
-         , bNotes :: String
-         , bMagitude :: Double
-         , bUminB :: Maybe Double
-         , bBminV :: Double
-         , bSpectralType :: String
-         }
-  deriving (Eq, Show)
-
-star :: ReadP BrightStar
-star = do
-  name <- readName
-  _ <- space
-  hr <- readHRNo
-  _ <- space
-  ra <- readRA
-  _ <- space
-  d <- readDec
-  _ <- space
-  notes <- readNotes
-  _ <- space
-  mag <- readMagnitude
-  _ <- space
-  uminB <- readUminB
-  _ <- space
-  bminV <- readBminV
-  _ <- space
-  spec <- readSpectralType
-
-  return
-    BrightStar
-      { bName = name
-      , bHRNo = hr
-      , bRA = ra
-      , bDec = d
-      , bNotes = notes
-      , bMagitude = mag
-      , bUminB = uminB
-      , bBminV = bminV
-      , bSpectralType = spec
-      }
-
-  where
-    space = char ' '
-
-getn :: Int -> ReadP String
-getn n = count n get
-
-readName :: ReadP String
-readName = getn 19
-
-readHRNo :: ReadP Int
-readHRNo = do
-  s <- getn 5
-  return $ read s
-
-readRA :: ReadP Deg
-readRA = do
-  h <- getn 3
-  let hi = read h
-  m <- getn 3
-  let mi = read m
-  s <- getn 5
-  let sf = read s
-  return $ fromHMS hi mi sf
-
-replace :: String -> String
-replace = map
-            (\c -> if c == '+'
-                     then ' '
-                     else c)
-
-readDec :: ReadP Deg
-readDec = do
-  h <- getn 5
-  let h' = replace h
-  let hi = read h'
-  m <- getn 3
-  let mi = read m
-  s <- getn 3
-  let sf = read s
-  return $ fromDMS hi mi sf
-
-readNotes :: ReadP String
-readNotes = getn 8
-
-readMagnitude :: ReadP Double
-readMagnitude = do
-  m <- getn 5
-  return $ read m
-
-readUminB :: ReadP (Maybe Double)
-readUminB = do
-  m <- getn 5
-  if m == "     "
-    then return Nothing
-    else return . Just . read $ replace m
-
-readBminV :: ReadP Double
-readBminV = do
-  m <- getn 5
-  return . read $ replace m
-
-readSpectralType :: ReadP String
-readSpectralType = many1 get
-
-bEquatorial :: BrightStar -> EqPos
-bEquatorial b = EqPos (bRA b) (bDec b)
 
 class AEq a where
   (=~) :: a -> a -> Bool
@@ -167,36 +35,17 @@ instance AEq Vector3 where
 instance AEq Float where
   x =~ y = abs (x - y) < (1.0e-4 :: Float)
 
-type Deg = Degrees Double
-
 instance (AEq a) => AEq (Degrees a) where
   (Degrees x) =~ (Degrees y) = x =~ y
 
 instance (AEq a) => AEq (Radians a) where
   (Radians x) =~ (Radians y) = x =~ y
 
-fromDMS :: Int -> Int -> Double -> Deg
-fromDMS d m s = Degrees $ todec d m s
-
-fromHMS :: Int -> Int -> Double -> Deg
-fromHMS h m s = 15.0 * dhours
-  where
-    dhours = fromDMS h m s
-
-todec :: (Fractional a, Integral a1, Integral a2) => a1 -> a2 -> a -> a
-todec d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
-
 data GeoLoc = GeoLoc { gLatitude,gLongitude :: Deg }
-  deriving (Eq, Show)
-
-data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)
 
 data HorPos = HorPos { hAzimuth,hAltitude :: Deg }
   deriving (Eq, Show)
-
-instance Arbitrary Screen where
-  arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
 
 instance Arbitrary HorPos where
   arbitrary = do
@@ -224,15 +73,6 @@ currentSiderealtime = siderealtime <$> getCurrentTime
 
 currentLocalSiderealtime :: GeoLoc -> IO Deg
 currentLocalSiderealtime l = localSiderealtime l <$> getCurrentTime
-
-toMinutesSeconds :: Deg -> (Int, Int, Int)
-toMinutesSeconds (Degrees d) = (i, m, s)
-  where
-    i = floor d
-    r = d - fromIntegral i
-    m = r `div'` (1 / 60)
-    r' = r - fromIntegral m * (1 / 60)
-    s = r' `div'` (1 / 3600)
 
 localSiderealtime :: GeoLoc -> UTCTime -> Deg
 localSiderealtime (GeoLoc _ long) utc = Degrees $ lst `mod'` 360
@@ -297,80 +137,3 @@ pretty (b, HorPos a h) = bName b ++
     (d, m, s) = toMinutesSeconds a
     (d', m', s') = toMinutesSeconds h
 
-{-- For graphical representation --}
-data World = World { wStars :: [BrightStar], wScreen :: Screen }
-  deriving (Eq, Show)
-
-{-- Viewing screen has a direction and distance --}
-data Screen = Screen HorPos Double
-  deriving (Eq, Show)
-
-cartesian :: HorPos -> Vector3
-cartesian (HorPos az al) = Vector3
-  { v3x = sine incl * cosine az
-  , v3y = sine incl * sine az
-  , v3z = cosine incl
-  }
-  where
-    incl = Degrees 90 - al
-
-screenCoord :: Screen -> HorPos -> Maybe P.Point
-screenCoord s (HorPos az h)
-  | h > 0 =
-      let v = screenIntersect s (HorPos az h)
-      in case v of
-        Just p  -> relativeCoord s p
-        Nothing -> Nothing
-  | otherwise = Nothing
-
-relativeCoord :: Screen -> Vector3 -> Maybe P.Point
-relativeCoord s w = fmap (double2Float *** double2Float) (solveLinearEq (grid s) v)
-  where
-    v = w - origin s
-
-solveLinearEq :: (Vector3, Vector3) -> Vector3 -> Maybe (Scalar, Scalar)
-solveLinearEq (v, w) a = listToMaybe [z | z <- nums
-                                        , dis z < 0.1]
-  where
-    dis (x, y) = vmag $ (x *| v + y *| w) - a
-    nums = [(x, y) | (x, y) <- l
-                   , isNum x
-                   , isNum y]
-    l = [useToSolve accA accB (v, w) a | accA <- [v3x, v3y, v3z]
-                                       , accB <- [v3x, v3y, v3z]
-                                       , accA dum /= accB dum]
-    dum = Vector3 0 1 2
-    isNum x = not (isNaN x) && not (isInfinite x)
-
-useToSolve :: Fractional t1 => (t -> t1) -> (t -> t1) -> (t, t) -> t -> (t1, t1)
-useToSolve accA accB (v, w) a = (p, q)
-  where
-    q = (accB a * accA v - accA a * accB v) / (accB w * accA v + accA w * accB v)
-    p = (accA a - q * accA w) / accA v
-
-origin :: Screen -> Vector3
-origin (Screen vdir dist) =
-  let snv = cartesian vdir
-  in vnormalise snv |* dist
-
-normalVector :: Screen -> Vector3
-normalVector (Screen vdir _) = cartesian vdir
-
-grid :: Screen -> (Vector3, Vector3)
-grid (Screen (HorPos az al) _) = (r x, r y)
-  where
-    x = Vector3 0 1 0
-    y = Vector3 0 0 1
-    r1 = rotateT AxisX AxisZ (radians al)
-    r2 = rotateT AxisX AxisY (radians az)
-    r v = transformP3 r2 (transformP3 r1 v)
-
-screenIntersect :: Screen -> HorPos -> Maybe Vector3
-screenIntersect s hor = if ln /= 0 && f > 0
-                          then Just $ f *| lv
-                          else Nothing
-  where
-    lv = cartesian hor
-    ln = lv `vdot` normalVector s
-    f = (origin s `vdot` normalVector s) / ln
-    

@@ -10,7 +10,7 @@ name:                hephem
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.2.0.0
+version:             0.2.1.0
 
 -- A short (one-line) description of the package.
 synopsis:            Learning project calculating star positions
@@ -108,8 +108,6 @@ test-suite hephem-tests
                      gloss >= 1.9.4.1,
                      HUnit >= 1.3.0.0,
                      QuickCheck,
-                     test-framework,
-                     test-framework-hunit,
-                     test-framework-quickcheck2
-
+                     hspec-test-framework,
+                     hspec-test-framework-th 
   default-language:    Haskell2010
