@@ -80,7 +80,7 @@ solveLinearEq (v, w) a = if null dlist then
                          else Just closest
   where
     closest = snd . Map.findMin $ Map.fromList dlist
-    dlist = [ (dis z, z) | z <- nums{-, dis z < 1-}]
+    dlist = [ (dis z, z) | z <- nums]
     dis (x, y) = vmag $ (x *| v + y *| w) - a
     nums = [(x, y) | (x, y) <- l
                    , isNum x
@@ -95,6 +95,6 @@ solveLinearEq (v, w) a = if null dlist then
 useToSolve :: Fractional t1 => (t -> t1) -> (t -> t1) -> (t, t) -> t -> (t1, t1)
 useToSolve accA accB (v, w) a = (p, q)
   where
-    q = (accB a * accA v - accA a * accB v) / (accB w * accA v + accA w * accB v)
+    q = (accB a * accA v - accA a * accB v) / (accB w * accA v - accA w * accB v)
     p = (accA a - q * accA w) / accA v
 

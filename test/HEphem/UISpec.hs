@@ -79,6 +79,13 @@ testGrids = TestList
                            fst vs @=~? v
                            snd vs @=~? w)
 
+prop_Grid_Ortho :: Screen -> Bool
+prop_Grid_Ortho s =  let (x, y) = grid s; snv = normalVector s in (x `vdot` y) =~ 0 && (x `vdot` snv) =~ 0 && (y `vdot` snv) =~ 0
+    
+prop_Grid_SizeOne::Screen -> Bool
+prop_Grid_SizeOne s = let (x, y) = grid s; hasMagOne v = abs (vmag v - 1) < 1.0e-2 in hasMagOne x && hasMagOne y
+
+
 testScreenIntersects :: Test
 testScreenIntersects = TestList
   [testScreenIntersect scr hor p | (scr, hor, p) <-
@@ -148,17 +155,20 @@ spec = describe "UI module" $ do
     describe "holds for some values" $
       fromHUnitTest testGrids
 
-    it "is orthogonal " $ property $
-      \s -> let (x, y) = grid s
-                snv = normalVector s
-            in (x `vdot` y) =~ 0 && (x `vdot` snv) =~ 0 && (y `vdot` snv) =~ 0
-    
-    it "each component has size one" $ property $
-      \s -> let (x, y) = grid s
-                hasMagOne v = abs (vmag v - 1) < 1.0e-2
-            in hasMagOne x && hasMagOne y
+    it "is orthogonal " $ property 
+      prop_Grid_Ortho; 
+
+    it "each component has size one" $ property 
+      prop_Grid_SizeOne
+
+    it "is orthogonal in zenithNorthEast" $ property $
+      prop_Grid_Ortho zenithNorthEast1; 
+
+    it "each component has size one in zenithNorthEast" $ property $
+      prop_Grid_SizeOne zenithNorthEast1;
 
   describe "screenIntersect" $ do
+
     describe "holds for some easy test values" $
       fromHUnitTest testScreenIntersects;
 
@@ -169,6 +179,7 @@ spec = describe "UI module" $ do
        prop_ScreenIntersect zenithNorthEast1   
 
   describe "solveLinearEq" $ do
+
     it "can calculate back sum of linear product of the grid vectors" $
       property prop_SolveLinear;    
 
@@ -176,17 +187,21 @@ spec = describe "UI module" $ do
       property $ prop_SolveLinear zenithNorthEast1   
 
   describe "relativeCoord" $ do
+
     describe "holds for some simple test values" $
       fromHUnitTest testRelativeCoords;
   
     it "gives coords that give back the intersection with the plane" $
       property prop_RelativeCoord;
 
-    it "idem in zenithNorthEast" $
+    it "gives coords that give back the intersection with the plane in zenithNorthEast" $
       property $ prop_RelativeCoord zenithNorthEast1
+
   describe "screenCoord" $ do
+
     it "screen intersect matches origin plus linear sum of the grid" $
       property prop_ScreenCoord;
+
     it "screen intersect matches origin plus linear sum of the grid in zenithNorthEast" $
       property $ prop_ScreenCoord zenithNorthEast1 
 
