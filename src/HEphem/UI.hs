@@ -1,18 +1,18 @@
 module HEphem.UI where
 
-import qualified Graphics.Gloss.Data.Point as P
-import           GHC.Float
-import           Control.Monad
 import           Control.Arrow
-import           Data.Maybe
-import           Test.QuickCheck
+import           Control.Monad
+import           Data.Angle
+import qualified Data.Map                    as Map
+import           Data.Vector.Class
+import           Data.Vector.Fancy
+import           Data.Vector.Transform.Fancy
 import           Data.Vector.Transform.T3
 import           Data.Vector.V3
-import           Data.Vector.Fancy
-import           Data.Vector.Class
-import           Data.Vector.Transform.Fancy
-import           Data.Angle
+import           GHC.Float
+import qualified Graphics.Gloss.Data.Point   as P
 import           HEphem.Data
+import           Test.QuickCheck
 
 instance Arbitrary Screen where
   arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
@@ -43,7 +43,7 @@ grid (Screen (HorPos az al) _) = (r x, r y)
     r v = transformP3 r2 (transformP3 r1 v)
 
 screenIntersect :: Screen -> HorPos -> Maybe Vector3
-screenIntersect s hor = if ln /= 0 && f > 0
+screenIntersect s hor = if abs ln > 0.01 && f > 0
                           then Just $ f *| lv
                           else Nothing
   where
@@ -75,9 +75,12 @@ relativeCoord s w = fmap (double2Float *** double2Float) (solveLinearEq (grid s)
     v = w - origin s
 
 solveLinearEq :: (Vector3, Vector3) -> Vector3 -> Maybe (Scalar, Scalar)
-solveLinearEq (v, w) a = listToMaybe [z | z <- nums
-                                        , dis z < 0.1]
+solveLinearEq (v, w) a = if null dlist then
+                            Nothing
+                         else Just closest
   where
+    closest = snd . Map.findMin $ Map.fromList dlist
+    dlist = [ (dis z, z) | z <- nums{-, dis z < 1-}]
     dis (x, y) = vmag $ (x *| v + y *| w) - a
     nums = [(x, y) | (x, y) <- l
                    , isNum x
@@ -87,6 +90,7 @@ solveLinearEq (v, w) a = listToMaybe [z | z <- nums
                                        , accA dum /= accB dum]
     dum = Vector3 0 1 2
     isNum x = not (isNaN x) && not (isInfinite x)
+
 
 useToSolve :: Fractional t1 => (t -> t1) -> (t -> t1) -> (t, t) -> t -> (t1, t1)
 useToSolve accA accB (v, w) a = (p, q)

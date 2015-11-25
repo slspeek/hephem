@@ -16,6 +16,9 @@ import           Test.QuickCheck
 flatNorth :: HorPos
 flatNorth = HorPos (Degrees 0) (Degrees 0)
 
+zenithNorthEast :: HorPos
+zenithNorthEast = HorPos (Degrees 45) (Degrees 90)
+
 zenithNorth :: HorPos
 zenithNorth = HorPos (Degrees 0) (Degrees 90)
 
@@ -42,6 +45,10 @@ northEast = HorPos (Degrees 45) (Degrees 45)
 
 northEast1 :: Screen
 northEast1 = Screen northEast 1
+
+zenithNorthEast1 :: Screen
+zenithNorthEast1 = Screen zenithNorthEast 100
+
 
 testCartesian :: HorPos -> Vector3 -> Test
 testCartesian hor v = TestCase $ v @=~? cartesian hor
@@ -98,7 +105,6 @@ prop_SolveLinear s (x, y) = vmag ((p *| v + q *| w) - i) < 0.1
     i = x *| v + y *| w
     (p, q) = fromJust $ solveLinearEq (v, w) i
 
-
 testRelativeCoords :: Test
 testRelativeCoords = TestList
                        [testRelativeCoord s (Vector3 p0 p1 p2) r | (s, (p0, p1, p2), r) <- [ (flatNorth1, (1, 0, 1), (0, 1))
@@ -122,6 +128,17 @@ prop_ScreenCoord s hor = isJust (screenCoord s hor) && isJust (screenIntersect s
       (v, w) = grid s
       i = fromJust $ screenIntersect s hor
 
+prop_RelativeCoord :: Screen -> HorPos -> Property
+prop_RelativeCoord s hor = isJust (screenIntersect s hor) && isJust (relativeCoord s (fromJust(screenIntersect s hor))) ==>
+  vmag (o +  float2Double x *| v + float2Double y *| w - i) < 0.1
+    where 
+      (x, y) = fromJust $ relativeCoord s i 
+      i = fromJust $ screenIntersect s hor 
+      o = origin s 
+      (v, w) = grid s
+
+-- Main test script 
+--
 spec :: SpecWith ()
 spec = describe "UI module" $ do
   describe "cartesian" $
@@ -141,23 +158,36 @@ spec = describe "UI module" $ do
                 hasMagOne v = abs (vmag v - 1) < 1.0e-2
             in hasMagOne x && hasMagOne y
 
-  describe "screenIntersect" $
+  describe "screenIntersect" $ do
     describe "holds for some easy test values" $
       fromHUnitTest testScreenIntersects;
 
     it "lays in the plane" $ property  
-       prop_ScreenIntersect    
+       prop_ScreenIntersect;    
 
-  describe "solveLinearEq" $
-    it "can calutate back sum of linear product of the grid vectors" $
-      property prop_SolveLinear    
+    it "lays in the plane for zenithNorthEast" $ property $ 
+       prop_ScreenIntersect zenithNorthEast1   
 
-  describe "relativeCoord" $
+  describe "solveLinearEq" $ do
+    it "can calculate back sum of linear product of the grid vectors" $
+      property prop_SolveLinear;    
+
+    it "can calculate back sum of linear product of the grid vectors in zenithNorthEast" $
+      property $ prop_SolveLinear zenithNorthEast1   
+
+  describe "relativeCoord" $ do
     describe "holds for some simple test values" $
       fromHUnitTest testRelativeCoords;
+  
+    it "gives coords that give back the intersection with the plane" $
+      property prop_RelativeCoord;
 
-  describe "screenCoord" $
+    it "idem in zenithNorthEast" $
+      property $ prop_RelativeCoord zenithNorthEast1
+  describe "screenCoord" $ do
     it "screen intersect matches origin plus linear sum of the grid" $
-      property prop_SolveLinear    
+      property prop_ScreenCoord;
+    it "screen intersect matches origin plus linear sum of the grid in zenithNorthEast" $
+      property $ prop_ScreenCoord zenithNorthEast1 
 
 

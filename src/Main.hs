@@ -10,7 +10,7 @@ import           GHC.Float
 import           Data.Angle
 
 north :: Screen
-north = Screen (HorPos (Degrees 0) (Degrees 45)) 100
+north = Screen (HorPos (Degrees 45) (Degrees 90)) 100
 
 main :: IO ()
 main = do
