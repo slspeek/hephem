@@ -18,8 +18,8 @@ instance Arbitrary Screen where
   arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
 
 -- | World in the Gloss Game sense
-data World = World { wStars :: [BrightStar], wScreen :: Screen }
-  deriving (Eq, Show)
+data World = World { wStars :: [Observable], wScreen :: Screen }
+  deriving (Show)
 
 {-- Viewing screen has a direction and distance --}
 data Screen = Screen HorPos Double
@@ -97,4 +97,3 @@ useToSolve accA accB (v, w) a = (p, q)
   where
     q = (accB a * accA v - accA a * accB v) / (accB w * accA v - accA w * accB v)
     p = (accA a - q * accA w) / accA v
-

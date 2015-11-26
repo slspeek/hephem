@@ -1,10 +1,12 @@
+{-# LANGUAGE ExistentialQuantification #-}
+
 module HEphem.Data where
 
 import           Data.Angle
 import           Test.QuickCheck
 
-import           Data.Vector.V3
 import           Data.Vector.Class ()
+import           Data.Vector.V3
 
 type Deg = Degrees Double
 
@@ -13,20 +15,55 @@ data EqPos = EqPos { eRA,eDec :: Deg }
 
 data BrightStar =
        BrightStar
-         { bName :: String
-         , bHRNo :: Int
-         , bRA :: Deg
-         , bDec :: Deg
-         , bNotes :: String
-         , bMagitude :: Double
-         , bUminB :: Maybe Double
-         , bBminV :: Double
+         { bName         :: String
+         , bHRNo         :: Int
+         , bRA           :: Deg
+         , bDec          :: Deg
+         , bNotes        :: String
+         , bMagitude     :: Float
+         , bUminB        :: Maybe Float
+         , bBminV        :: Float
          , bSpectralType :: String
          }
   deriving (Eq, Show)
 
+data NGCObject =
+      NGCObject
+        { nID :: String
+        , nPGC:: String
+        , nMessier:: String
+        , nType:: String
+        , nClass:: String
+        , nRA :: Deg
+        , nDec :: Deg
+        , nMag :: Float
+         }
+  deriving (Eq, Show)
+
+class (Show a) => Observable_ a where
+  equatorial:: a -> EqPos
+  magnitude:: a -> Float
+
 bEquatorial :: BrightStar -> EqPos
 bEquatorial b = EqPos (bRA b) (bDec b)
+
+instance Observable_ BrightStar where
+  equatorial = bEquatorial
+  magnitude = bMagitude
+
+instance Observable_ NGCObject where
+  equatorial ngc = EqPos (nRA ngc) (nDec ngc)
+  magnitude = nMag
+
+data Observable = forall a . Observable_ a => MkObservable a
+
+
+instance Show Observable where
+  show (MkObservable a) = show a
+
+instance Observable_ Observable where
+  equatorial (MkObservable a )= equatorial a
+  magnitude (MkObservable a )= magnitude a
 
 class AEq a where
   (=~) :: a -> a -> Bool
@@ -66,4 +103,3 @@ instance Arbitrary HorPos where
     az <- suchThat arbitrary (\x -> x >= 0 && x <= 360)
     al <- suchThat arbitrary (\x -> x >= 0 && x <= 90)
     return $ HorPos (Degrees az) (Degrees al)
-

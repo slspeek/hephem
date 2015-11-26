@@ -1,13 +1,12 @@
 module Main where
 
-import           HEphem.HEphem
-import           HEphem.Data
-import           HEphem.UI
-import           HEphem.BSParser
+import           Data.Angle
 import           Data.Time.Clock
 import           Graphics.Gloss.Interface.IO.Game
-import           GHC.Float
-import           Data.Angle
+import           HEphem.BSParser
+import           HEphem.Data
+import           HEphem.HEphem
+import           HEphem.UI
 
 north :: Screen
 north = Screen (HorPos (Degrees 45) (Degrees 90)) 100
@@ -22,7 +21,7 @@ main = do
     (InWindow "HEphem" (1024, 768) (10, 10))
     black
     5
-    (World brightstarlist north)
+    (World (fmap MkObservable brightstarlist) north)
     pictureWorld
     eventHandler
     (\_ world -> return world)
@@ -31,10 +30,7 @@ pictureWorld :: World -> IO Picture
 pictureWorld (World bs scr) =
   let pictureStar s t =
                          case screenCoord scr (snd (horizontal geoAms t s)) of
-                           Just (x, y) -> Color white . Translate (10 * x) (10 * y) $ circleSolid
-                                                                                        (double2Float
-                                                                                           (6 - bMagitude
-                                                                                                  s))
+                           Just (x, y) -> Color white . Translate (10 * x) (10 * y) $ circleSolid (6 - magnitude s)
                            Nothing -> Blank
   in do
     utc <- getCurrentTime
@@ -60,4 +56,4 @@ eventHandler ev (World bs (Screen (HorPos az h) d)) =
     EventKey (SpecialKey KeyDown) Up _ _  -> return $ World bs (Screen (HorPos az (h - 3)) d)
     EventKey (Char 'w') Up _ _            -> return $ World bs (Screen (HorPos az h) (d * 1.1))
     EventKey (Char 's') Up _ _            -> return $ World bs (Screen (HorPos az h) (d / 1.1))
-    _ -> return $  World  bs (Screen (HorPos az  h) d) 
+    _ -> return $  World  bs (Screen (HorPos az  h) d)

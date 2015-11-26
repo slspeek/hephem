@@ -10,12 +10,12 @@ module HEphem.BSParser (
     readDec,
     ) where
 
-import           Text.ParserCombinators.ReadP
-import           Data.String
-import           Data.FileEmbed
 import           Data.Angle
-import           Data.Fixed (div')
+import           Data.FileEmbed
+import           Data.Fixed                   (div')
+import           Data.String
 import           HEphem.Data
+import           Text.ParserCombinators.ReadP
 
 toDecimal :: (Fractional a, Integral a1, Integral a2) => a1 -> a2 -> a -> a
 toDecimal d m s = fromIntegral d + ((fromIntegral m / 60.0) + (s / 3600.0))
@@ -113,19 +113,19 @@ readDec = do
 readNotes :: ReadP String
 readNotes = getn 8
 
-readMagnitude :: ReadP Double
+readMagnitude :: ReadP Float
 readMagnitude = do
   m <- getn 5
   return $ read m
 
-readUminB :: ReadP (Maybe Double)
+readUminB :: ReadP (Maybe Float)
 readUminB = do
   m <- getn 5
   if m == "     "
     then return Nothing
     else return . Just . read $ replace m
 
-readBminV :: ReadP Double
+readBminV :: ReadP Float
 readBminV = do
   m <- getn 5
   return . read $ replace m
@@ -141,4 +141,3 @@ toMinutesSeconds (Degrees d) = (i, m, s)
     m = r `div'` (1 / 60)
     r' = r - fromIntegral m * (1 / 60)
     s = r' `div'` (1 / 3600)
-

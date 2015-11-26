@@ -1,12 +1,14 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module HEphem.HEphem where
 
-import           Data.Time.Clock
-import           Data.Time.Calendar
-import           Data.Fixed (mod')
-import           Data.Vector.Class ()
 import           Data.Angle
+import           Data.Fixed         (mod')
+import           Data.Time.Calendar
+import           Data.Time.Clock
+import           Data.Vector.Class  ()
 import           HEphem.BSParser
 import           HEphem.Data
 
@@ -55,19 +57,19 @@ toHorPosCoord lst (GeoLoc fi _) (EqPos ra d) = HorPos az al
     azx = (sine d - sine fi * sine al) / (cosine fi * cosine al)
     az = degrees $ solveAngle azx azy
 
-horizontal :: GeoLoc -> UTCTime -> BrightStar -> (BrightStar, HorPos)
-horizontal loc utc b = (b, toHorPosCoord lst loc (bEquatorial b))
+horizontal :: GeoLoc -> UTCTime -> Observable -> (Observable, HorPos)
+horizontal loc utc b = (b, toHorPosCoord lst loc (equatorial b))
   where
     lst = localSiderealtime loc utc
 
 data Rectangle = Rectangle Deg Deg Deg Deg
 
-visibleIn :: GeoLoc -> Rectangle -> IO [(BrightStar, HorPos)]
+visibleIn :: GeoLoc -> Rectangle -> IO [(Observable, HorPos)]
 visibleIn geo (Rectangle minAz maxAz minAl maxAl) =
   do
     t <- getCurrentTime
     let f = horizontal geo t
-    return $ filter p (map f brightstarlist)
+    return $ filter p (map f (fmap MkObservable brightstarlist))
 
   where
     p (_, HorPos a h) = (minAz <= a) &&
@@ -96,4 +98,3 @@ pretty (b, HorPos a h) = bName b ++
   where
     (d, m, s) = toMinutesSeconds a
     (d', m', s') = toMinutesSeconds h
-
