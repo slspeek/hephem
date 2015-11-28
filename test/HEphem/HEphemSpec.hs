@@ -26,7 +26,7 @@ testSolveAngle = TestList
 
 testHorizontal :: Test
 testHorizontal = TestList
-  [testHorizontalCoord (MkObservable s) (mkUTCTime u) (mkHorzontal h) | (s, u, h) <-
+  [testHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <-
       [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
       , (mirfak, 1, ((130, 17, 32), (86, 21, 34)))
       , (mirfak, 3, ((271, 40, 38), (73, 44, 8)))

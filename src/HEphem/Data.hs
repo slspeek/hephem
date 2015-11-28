@@ -4,7 +4,6 @@ module HEphem.Data where
 
 import           Data.Angle
 import           Test.QuickCheck
-
 import           Data.Vector.Class ()
 import           Data.Vector.V3
 
@@ -13,57 +12,37 @@ type Deg = Degrees Double
 data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)
 
-data BrightStar =
-       BrightStar
-         { bName         :: String
-         , bHRNo         :: Int
-         , bRA           :: Deg
-         , bDec          :: Deg
-         , bNotes        :: String
-         , bMagitude     :: Float
-         , bUminB        :: Maybe Float
-         , bBminV        :: Float
-         , bSpectralType :: String
-         }
-  deriving (Eq, Show)
+data SkyObject =
+  NGCObject
+  { nID :: String
+  , nPGC:: String
+  , nMessier:: String
+  , nType:: String
+  , nClass:: String
+  , nRA :: Deg
+  , nDec :: Deg
+  , nMag :: Float
+   }
+  |BrightStar
+            { bName         :: String
+            , bHRNo         :: Int
+            , bRA           :: Deg
+            , bDec          :: Deg
+            , bNotes        :: String
+            , bMagitude     :: Float
+            , bUminB        :: Maybe Float
+            , bBminV        :: Float
+            , bSpectralType :: String
+            }
+            deriving (Show)
 
-data NGCObject =
-      NGCObject
-        { nID :: String
-        , nPGC:: String
-        , nMessier:: String
-        , nType:: String
-        , nClass:: String
-        , nRA :: Deg
-        , nDec :: Deg
-        , nMag :: Float
-         }
-  deriving (Eq, Show)
+equatorial:: SkyObject -> EqPos
+equatorial (BrightStar _ _ r d _ _ _ _ _) = EqPos r d
+equatorial (NGCObject _ _ _ _ _ r d _ ) = EqPos r d
 
-class (Show a) => Observable_ a where
-  equatorial:: a -> EqPos
-  magnitude:: a -> Float
-
-bEquatorial :: BrightStar -> EqPos
-bEquatorial b = EqPos (bRA b) (bDec b)
-
-instance Observable_ BrightStar where
-  equatorial = bEquatorial
-  magnitude = bMagitude
-
-instance Observable_ NGCObject where
-  equatorial ngc = EqPos (nRA ngc) (nDec ngc)
-  magnitude = nMag
-
-data Observable = forall a . Observable_ a => MkObservable a
-
-
-instance Show Observable where
-  show (MkObservable a) = show a
-
-instance Observable_ Observable where
-  equatorial (MkObservable a )= equatorial a
-  magnitude (MkObservable a )= magnitude a
+magnitude:: SkyObject -> Float
+magnitude (BrightStar _ _ _ _ _ m _ _ _) = m
+magnitude (NGCObject _ _ _ _ _ _ _ m ) = m
 
 class AEq a where
   (=~) :: a -> a -> Bool

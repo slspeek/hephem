@@ -31,12 +31,12 @@ fromHMS h m s = 15.0 * dhours
 brightstartext :: IsString a => a
 brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
 
-brightstarlist :: [BrightStar]
+brightstarlist :: [SkyObject]
 brightstarlist =
   let starlines = (drop 5 . lines) brightstartext
   in map (fst . last . readP_to_S starReadP) starlines
 
-starReadP :: ReadP BrightStar
+starReadP :: ReadP SkyObject
 starReadP = do
   name <- readName
   _ <- space

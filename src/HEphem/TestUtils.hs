@@ -2,8 +2,8 @@ module HEphem.TestUtils where
 
 import           HEphem.BSParser
 import           HEphem.Data
-import           Text.ParserCombinators.ReadP
 import           Test.HUnit
+import           Text.ParserCombinators.ReadP
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
 (@=~?) expected actual = expected =~ actual @? assertionMsg
@@ -11,7 +11,7 @@ import           Test.HUnit
     assertionMsg = "Expected : " ++ show expected ++
                                     "\nActual   : " ++ show actual
 
-parseStar :: String -> BrightStar
+parseStar :: String -> SkyObject
 parseStar = fst . last . readP_to_S starReadP
 
 mirfakLine :: String
@@ -23,12 +23,11 @@ betelgeuseLine = "  58   alpha    Ori  2061   5 56 02.0   + 7 24 27   ad6     0.
 pole :: String
 pole = "          NorthPole  0000   0 00 00      90 00 10   das     1.79 +0.37 +0.48 F5 Ib"
 
-betelgeuse :: BrightStar
+betelgeuse :: SkyObject
 betelgeuse = parseStar betelgeuseLine
 
-mirfak :: BrightStar
+mirfak :: SkyObject
 mirfak = parseStar mirfakLine
 
-northskypole :: BrightStar
+northskypole :: SkyObject
 northskypole = parseStar pole
-

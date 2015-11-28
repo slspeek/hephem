@@ -21,7 +21,7 @@ main = do
     (InWindow "HEphem" (1024, 768) (10, 10))
     black
     5
-    (World (fmap MkObservable brightstarlist) north)
+    (World brightstarlist north)
     pictureWorld
     eventHandler
     (\_ world -> return world)

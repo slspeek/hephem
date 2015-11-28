@@ -18,7 +18,7 @@ instance Arbitrary Screen where
   arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
 
 -- | World in the Gloss Game sense
-data World = World { wStars :: [Observable], wScreen :: Screen }
+data World = World { wStars :: [SkyObject], wScreen :: Screen }
   deriving (Show)
 
 {-- Viewing screen has a direction and distance --}
