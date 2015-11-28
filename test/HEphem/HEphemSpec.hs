@@ -6,7 +6,7 @@ import           Data.Time.Clock
 import           HEphem.BSParser
 import           HEphem.Data
 import           HEphem.HEphem
-import           HEphem.TestUtils
+import           HEphem.TestUtil
 import           Test.Hspec
 import           Test.Hspec.Contrib.HUnit
 import           Test.HUnit

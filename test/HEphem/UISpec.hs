@@ -6,7 +6,7 @@ import           Data.Vector.Class
 import           Data.Vector.V3
 import           GHC.Float
 import           HEphem.Data
-import           HEphem.TestUtils
+import           HEphem.TestUtil
 import           HEphem.UI
 import           Test.Hspec
 import           Test.Hspec.Contrib.HUnit (fromHUnitTest)
@@ -81,7 +81,7 @@ testGrids = TestList
 
 prop_Grid_Ortho :: Screen -> Bool
 prop_Grid_Ortho s =  let (x, y) = grid s; snv = normalVector s in (x `vdot` y) =~ 0 && (x `vdot` snv) =~ 0 && (y `vdot` snv) =~ 0
-    
+
 prop_Grid_SizeOne::Screen -> Bool
 prop_Grid_SizeOne s = let (x, y) = grid s; hasMagOne v = abs (vmag v - 1) < 1.0e-2 in hasMagOne x && hasMagOne y
 
@@ -138,13 +138,13 @@ prop_ScreenCoord s hor = isJust (screenCoord s hor) && isJust (screenIntersect s
 prop_RelativeCoord :: Screen -> HorPos -> Property
 prop_RelativeCoord s hor = isJust (screenIntersect s hor) && isJust (relativeCoord s (fromJust(screenIntersect s hor))) ==>
   vmag (o +  float2Double x *| v + float2Double y *| w - i) < 0.1
-    where 
-      (x, y) = fromJust $ relativeCoord s i 
-      i = fromJust $ screenIntersect s hor 
-      o = origin s 
+    where
+      (x, y) = fromJust $ relativeCoord s i
+      i = fromJust $ screenIntersect s hor
+      o = origin s
       (v, w) = grid s
 
--- Main test script 
+-- Main test script
 --
 spec :: SpecWith ()
 spec = describe "UI module" $ do
@@ -155,14 +155,14 @@ spec = describe "UI module" $ do
     describe "holds for some values" $
       fromHUnitTest testGrids
 
-    it "is orthogonal " $ property 
-      prop_Grid_Ortho; 
+    it "is orthogonal " $ property
+      prop_Grid_Ortho;
 
-    it "each component has size one" $ property 
+    it "each component has size one" $ property
       prop_Grid_SizeOne
 
     it "is orthogonal in zenithNorthEast" $ property $
-      prop_Grid_Ortho zenithNorthEast1; 
+      prop_Grid_Ortho zenithNorthEast1;
 
     it "each component has size one in zenithNorthEast" $ property $
       prop_Grid_SizeOne zenithNorthEast1;
@@ -172,25 +172,25 @@ spec = describe "UI module" $ do
     describe "holds for some easy test values" $
       fromHUnitTest testScreenIntersects;
 
-    it "lays in the plane" $ property  
-       prop_ScreenIntersect;    
+    it "lays in the plane" $ property
+       prop_ScreenIntersect;
 
-    it "lays in the plane for zenithNorthEast" $ property $ 
-       prop_ScreenIntersect zenithNorthEast1   
+    it "lays in the plane for zenithNorthEast" $ property $
+       prop_ScreenIntersect zenithNorthEast1
 
   describe "solveLinearEq" $ do
 
     it "can calculate back sum of linear product of the grid vectors" $
-      property prop_SolveLinear;    
+      property prop_SolveLinear;
 
     it "can calculate back sum of linear product of the grid vectors in zenithNorthEast" $
-      property $ prop_SolveLinear zenithNorthEast1   
+      property $ prop_SolveLinear zenithNorthEast1
 
   describe "relativeCoord" $ do
 
     describe "holds for some simple test values" $
       fromHUnitTest testRelativeCoords;
-  
+
     it "gives coords that give back the intersection with the plane" $
       property prop_RelativeCoord;
 
@@ -203,6 +203,4 @@ spec = describe "UI module" $ do
       property prop_ScreenCoord;
 
     it "screen intersect matches origin plus linear sum of the grid in zenithNorthEast" $
-      property $ prop_ScreenCoord zenithNorthEast1 
-
-
+      property $ prop_ScreenCoord zenithNorthEast1

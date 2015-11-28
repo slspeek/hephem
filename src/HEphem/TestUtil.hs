@@ -1,4 +1,4 @@
-module HEphem.TestUtils where
+module HEphem.TestUtil where
 
 import           HEphem.BSParser
 import           HEphem.Data

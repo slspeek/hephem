@@ -11,6 +11,7 @@ import           Data.Time.Clock
 import           Data.Vector.Class  ()
 import           HEphem.BSParser
 import           HEphem.Data
+import           HEphem.ParserUtil
 
 geoAms :: GeoLoc
 geoAms = GeoLoc (fromDMS 52 21 0) (fromDMS 4 51 59)
