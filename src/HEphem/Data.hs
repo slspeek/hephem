@@ -44,6 +44,10 @@ magnitude:: SkyObject -> Float
 magnitude (BrightStar _ _ _ _ _ m _ _ _) = m
 magnitude (NGCObject _ _ _ _ _ _ _ m ) = m
 
+sType:: SkyObject -> String
+sType BrightStar{} = "Star"
+sType (NGCObject _ _ _ t _ _ _ _ ) = t
+
 class AEq a where
   (=~) :: a -> a -> Bool
 
@@ -53,7 +57,7 @@ instance AEq Double where
 instance AEq HorPos where
   x =~ y = abs (hAzimuth x - hAzimuth y) < d && abs (hAltitude x - hAltitude y) < d
     where
-      d = 0.1 :: Degrees Double
+      d = 0.1 :: Deg
 
 instance AEq Vector3 where
   v =~ w = abs (v3x v - v3x w) < d &&

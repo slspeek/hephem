@@ -1,0 +1,5 @@
+:set -isrc:test
+:load HEphem.HEphem
+:load HEphem.ParserUtil
+:load HEphem.NGCParser
+:load HEphem.NGCParserSpec

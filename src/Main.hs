@@ -6,6 +6,7 @@ import           Graphics.Gloss.Interface.IO.Game
 import           HEphem.BSParser
 import           HEphem.Data
 import           HEphem.HEphem
+import           HEphem.NGCParser
 import           HEphem.UI
 
 north :: Screen
@@ -21,7 +22,7 @@ main = do
     (InWindow "HEphem" (1024, 768) (10, 10))
     black
     5
-    (World brightstarlist north)
+    (World (brightstarlist ++ filter (\x -> nMessier x /="" || nMag x < 7) ngcObjectList) north)
     pictureWorld
     eventHandler
     (\_ world -> return world)
@@ -30,8 +31,14 @@ pictureWorld :: World -> IO Picture
 pictureWorld (World bs scr) =
   let pictureStar s t =
                          case screenCoord scr (snd (horizontal geoAms t s)) of
-                           Just (x, y) -> Color white . Translate (10 * x) (10 * y) $ circleSolid (6 - magnitude s)
-                           Nothing -> Blank
+                           Just (x, y) -> case s of BrightStar{} ->
+                                                      Color white . Translate (10 * x) (10 * y) $ circleSolid (6 - magnitude s)
+                                                    _ ->
+                                                      Pictures [Color blue . Translate (10 * x) (10 * y) $ circle (6 - magnitude s),
+                                                              Color blue . Translate (10 * x + 10) (10 * y - 10) $ Scale 0.1 0.1 $ text (nMessier s)]
+                           Nothing -> Blank;
+
+
   in do
     utc <- getCurrentTime
     let stars = Pictures [pictureStar s utc | s <- bs]
