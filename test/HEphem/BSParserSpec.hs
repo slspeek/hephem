@@ -28,7 +28,3 @@ spec = describe "BrightStar parser" $ do
   it "parses a declination" $
     let (Degrees d) = (fst . last) $ readP_to_S readDec "  +49 54 54"
       in d @?= 49.915
-
-  describe "fromHMS" $
-    it "converts correctly for a test value" $
-      radians (fromHMS 12 30 30) @=~? Radians ((12 + 30 / 60 + 30 / 3600) * pi * 15 / 180)
