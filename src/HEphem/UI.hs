@@ -3,26 +3,38 @@ module HEphem.UI where
 import           Control.Arrow
 import           Control.Monad
 import           Data.Angle
-import qualified Data.Map                    as Map
+import qualified Data.Map                         as Map
+import           Data.Maybe
+import           Data.Time.Clock
 import           Data.Vector.Class
 import           Data.Vector.Fancy
 import           Data.Vector.Transform.Fancy
 import           Data.Vector.Transform.T3
 import           Data.Vector.V3
 import           GHC.Float
-import qualified Graphics.Gloss.Data.Point   as P
+import qualified Graphics.Gloss.Data.Point        as P
+import           Graphics.Gloss.Interface.IO.Game
 import           HEphem.Data
+import           HEphem.HEphem
 import           Test.QuickCheck
 
 instance Arbitrary Screen where
   arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
 
 -- | World in the Gloss Game sense
-data World = World { wStars :: [SkyObject], wScreen :: Screen }
+data World = World
+  { wObjects :: [SkyObject]
+  , wScreen  :: Screen
+  , wGeo     :: GeoLoc
+  , wLlc     :: (Int, Int)
+  }
   deriving (Show)
 
 {-- Viewing screen has a direction and distance --}
-data Screen = Screen HorPos Double
+data Screen = Screen
+  { sDirection :: HorPos
+  , sDistance  :: Double
+  }
   deriving (Eq, Show)
 
 origin :: Screen -> Vector3
@@ -97,3 +109,61 @@ useToSolve accA accB (v, w) a = (p, q)
   where
     q = (accB a * accA v - accA a * accB v) / (accB w * accA v - accA w * accB v)
     p = (accA a - q * accA w) / accA v
+
+
+pictureSkyObject:: (SkyObject, (Float, Float))-> Picture
+pictureSkyObject (so, pos)  = case so of NGCObject{} -> pictureNGCObject so pos
+                                         BrightStar{} -> pictureStar so pos
+
+
+pictureStar:: SkyObject -> (Float,Float) -> Picture
+pictureStar s (x, y) = Color white . Translate (10 * x) (10 * y) $ circleSolid (max 1 (6 - magnitude s))
+
+pictureNGCObject:: SkyObject -> (Float,Float) -> Picture
+pictureNGCObject n (x, y) = Pictures
+  [ Color blue . Translate (10 * x) (10 * y) $ circle (max 1 (6 - magnitude n))
+  , Color blue . Translate (10 * x + 10) (10 * y - 10) $ Scale 0.1 0.1 $ text (nMessier n)
+  ]
+
+pictureDashboard:: World -> Picture
+pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y + 8) $ Scale 0.1 0.1 $
+  Text $ "Azimuth: " ++
+  show (hAzimuth(sDirection (wScreen w))) ++
+  " Altitude: " ++
+  show (hAltitude(sDirection (wScreen w))) ++
+  " Distance: " ++
+  show (sDistance (wScreen w))
+  where
+    (x, y) = wLlc w
+
+screenCoordAt:: Screen -> GeoLoc -> UTCTime ->SkyObject-> Maybe(Float,Float)
+screenCoordAt scr geo t so = screenCoord scr (snd (horizontal geo t so))
+
+visibleObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
+visibleObjects w t = mapMaybe f $ wObjects w
+  where
+    f so = do
+      c <- screenCoordAt (wScreen w) (wGeo w) t so
+      return (so, c)
+
+pictureWorld :: World -> IO Picture
+pictureWorld w =
+  do
+  utc <- getCurrentTime
+  let stars = Pictures $ map pictureSkyObject (visibleObjects w utc)
+  return $ Pictures [stars, pictureDashboard w]
+
+starColor :: Color
+starColor = white
+
+eventHandler :: Event -> World -> IO World
+eventHandler ev (World bs (Screen (HorPos az h) d) g llc) =
+  case ev of
+    EventKey (SpecialKey KeyLeft) Up _ _  -> return $ World bs (Screen (HorPos (-3 + az) h) d) g llc
+    EventKey (SpecialKey KeyRight) Up _ _ -> return $ World bs (Screen (HorPos (3 + az) h) d) g llc
+    EventKey (SpecialKey KeyUp) Up _ _    -> return $ World bs (Screen (HorPos az (h + 3)) d) g llc
+    EventKey (SpecialKey KeyDown) Up _ _  -> return $ World bs (Screen (HorPos az (h - 3)) d) g llc
+    EventKey (Char 'w') Up _ _            -> return $ World bs (Screen (HorPos az h) (d * 1.1)) g llc
+    EventKey (Char 's') Up _ _            -> return $ World bs (Screen (HorPos az h) (d / 1.1)) g llc
+    EventResize (x, y) -> return $ World bs (Screen (HorPos az h) d) g (- x `div` 2, - y `div` 2)
+    _ -> return $  World  bs (Screen (HorPos az  h) d) g llc

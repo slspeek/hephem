@@ -38,15 +38,14 @@ readNGCObject st = do
   s' <- readMaybeFloatWithComma (l !! 15)
   let dec = fromDMS d m' s'
   return  NGCObject
-    {nID = head l
-      , nPGC= l !! 1
-      , nMessier= l !! 2
-      , nType= l !! 3
-      , nClass= l !! 4
-      , nRA= ra
-      , nDec= dec
-      ,nMag= mag
-        }
-
+    { nID = head l
+    , nPGC= l !! 1
+    , nMessier= l !! 2
+    , nType= l !! 3
+    , nClass= l !! 4
+    , nRA= ra
+    , nDec= dec
+    ,nMag= mag
+    }
   where
      l = readRecord st
