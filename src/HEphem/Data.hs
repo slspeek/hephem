@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, TemplateHaskell #-}
 
 module HEphem.Data where
 
@@ -6,6 +6,7 @@ import           Data.Angle
 import           Test.QuickCheck
 import           Data.Vector.Class ()
 import           Data.Vector.V3
+import           Control.Lens                     hiding (element)
 
 type Deg = Degrees Double
 
@@ -55,7 +56,7 @@ instance AEq Double where
   x =~ y = abs (x - y) < (1.0e-8 :: Double)
 
 instance AEq HorPos where
-  x =~ y = abs (hAzimuth x - hAzimuth y) < d && abs (hAltitude x - hAltitude y) < d
+  x =~ y = abs (_hAzimuth x - _hAzimuth y) < d && abs (_hAltitude x - _hAltitude y) < d
     where
       d = 0.1 :: Deg
 
@@ -75,11 +76,14 @@ instance (AEq a) => AEq (Degrees a) where
 instance (AEq a) => AEq (Radians a) where
   (Radians x) =~ (Radians y) = x =~ y
 
-data GeoLoc = GeoLoc { gLatitude,gLongitude :: Deg }
+data GeoLoc = GeoLoc { _gLatitude,_gLongitude :: Deg }
   deriving (Eq, Show)
 
-data HorPos = HorPos { hAzimuth,hAltitude :: Deg }
+data HorPos = HorPos { _hAzimuth,_hAltitude :: Deg }
   deriving (Eq, Show)
+
+makeLenses ''GeoLoc
+makeLenses ''HorPos
 
 instance Arbitrary HorPos where
   arbitrary = do

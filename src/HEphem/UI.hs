@@ -1,6 +1,10 @@
+{-# LANGUAGE TemplateHaskell #-}
+
+
 module HEphem.UI where
 
 import           Control.Arrow
+import           Control.Lens                     hiding (element)
 import           Control.Monad
 import           Data.Angle
 import qualified Data.Map                         as Map
@@ -23,19 +27,22 @@ instance Arbitrary Screen where
 
 -- | World in the Gloss Game sense
 data World = World
-  { wObjects :: [SkyObject]
-  , wScreen  :: Screen
-  , wGeo     :: GeoLoc
-  , wLlc     :: (Int, Int)
+  { _wObjects :: [SkyObject]
+  , _wScreen  :: Screen
+  , _wGeo     :: GeoLoc
+  , _wLlc     :: (Int, Int)
   }
   deriving (Show)
 
 {-- Viewing screen has a direction and distance --}
 data Screen = Screen
-  { sDirection :: HorPos
-  , sDistance  :: Double
+  { _sDirection :: HorPos
+  , _sDistance  :: Double
   }
   deriving (Eq, Show)
+
+makeLenses ''World
+makeLenses ''Screen
 
 origin :: Screen -> Vector3
 origin (Screen vdir dist) =
@@ -128,22 +135,22 @@ pictureNGCObject n (x, y) = Pictures
 pictureDashboard:: World -> Picture
 pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y + 8) $ Scale 0.1 0.1 $
   Text $ "Azimuth: " ++
-  show (hAzimuth(sDirection (wScreen w))) ++
+  show (view (wScreen .sDirection . hAzimuth) w) ++
   " Altitude: " ++
-  show (hAltitude(sDirection (wScreen w))) ++
+  show (view (wScreen . sDirection . hAltitude)  w) ++
   " Distance: " ++
-  show (sDistance (wScreen w))
+  show (view (wScreen . sDistance )w)
   where
-    (x, y) = wLlc w
+    (x, y) = view wLlc w
 
 screenCoordAt:: Screen -> GeoLoc -> UTCTime ->SkyObject-> Maybe(Float,Float)
 screenCoordAt scr geo t so = screenCoord scr (snd (horizontal geo t so))
 
 visibleObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
-visibleObjects w t = mapMaybe f $ wObjects w
+visibleObjects w t = mapMaybe f $ view wObjects w
   where
     f so = do
-      c <- screenCoordAt (wScreen w) (wGeo w) t so
+      c <- screenCoordAt (view wScreen w) (view wGeo w) t so
       return (so, c)
 
 pictureWorld :: World -> IO Picture
@@ -157,13 +164,13 @@ starColor :: Color
 starColor = white
 
 eventHandler :: Event -> World -> IO World
-eventHandler ev (World bs (Screen (HorPos az h) d) g llc) =
+eventHandler ev w =
   case ev of
-    EventKey (SpecialKey KeyLeft) Up _ _  -> return $ World bs (Screen (HorPos (-3 + az) h) d) g llc
-    EventKey (SpecialKey KeyRight) Up _ _ -> return $ World bs (Screen (HorPos (3 + az) h) d) g llc
-    EventKey (SpecialKey KeyUp) Up _ _    -> return $ World bs (Screen (HorPos az (h + 3)) d) g llc
-    EventKey (SpecialKey KeyDown) Up _ _  -> return $ World bs (Screen (HorPos az (h - 3)) d) g llc
-    EventKey (Char 'w') Up _ _            -> return $ World bs (Screen (HorPos az h) (d * 1.1)) g llc
-    EventKey (Char 's') Up _ _            -> return $ World bs (Screen (HorPos az h) (d / 1.1)) g llc
-    EventResize (x, y) -> return $ World bs (Screen (HorPos az h) d) g (- x `div` 2, - y `div` 2)
-    _ -> return $  World  bs (Screen (HorPos az  h) d) g llc
+    EventKey (SpecialKey KeyLeft) Up _ _  -> return $ over (wScreen . sDirection . hAzimuth) (-3+) w
+    EventKey (SpecialKey KeyRight) Up _ _ -> return $ over (wScreen . sDirection . hAzimuth) (+3) w
+    EventKey (SpecialKey KeyUp) Up _ _    -> return $ over (wScreen . sDirection . hAltitude) (+3) w
+    EventKey (SpecialKey KeyDown) Up _ _  -> return $ over (wScreen . sDirection . hAltitude) (-3+) w
+    EventKey (Char 'w') Up _ _            -> return $ over (wScreen . sDistance) (* 1.1) w
+    EventKey (Char 's') Up _ _            -> return $ over (wScreen . sDistance) (/ 1.1) w
+    EventResize (x, y) -> return $ set wLlc (- x `div` 2, - y `div` 2) w
+    _ -> return  w
