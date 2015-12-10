@@ -7,9 +7,11 @@ import           Control.Arrow
 import           Control.Lens                     hiding (element)
 import           Control.Monad
 import           Data.Angle
+import           Data.Fixed                       (mod')
 import qualified Data.Map                         as Map
 import           Data.Maybe
 import           Data.Time.Clock
+import           Data.Time.Format
 import           Data.Vector.Class
 import           Data.Vector.Fancy
 import           Data.Vector.Transform.Fancy
@@ -21,16 +23,20 @@ import           Graphics.Gloss.Interface.IO.Game
 import           HEphem.Data
 import           HEphem.HEphem
 import           Test.QuickCheck
+import           Text.Printf
 
 instance Arbitrary Screen where
   arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
 
 -- | World in the Gloss Game sense
 data World = World
-  { _wObjects :: [SkyObject]
-  , _wScreen  :: Screen
-  , _wGeo     :: GeoLoc
-  , _wLlc     :: (Int, Int)
+  { _wObjects     :: [SkyObject]
+  , _wScreen      :: Screen
+  , _wGeo         :: GeoLoc
+  , _wLlc         :: (Int, Int)
+  , _wCurrentTime :: UTCTime
+  , _wTimeFactor  :: Float
+  , _wMinMag      :: Float
   }
   deriving (Show)
 
@@ -132,14 +138,22 @@ pictureNGCObject n (x, y) = Pictures
   , Color blue . Translate (10 * x + 10) (10 * y - 10) $ Scale 0.1 0.1 $ text (nMessier n)
   ]
 
+
+iso8601 :: UTCTime -> String
+iso8601 = formatTime defaultTimeLocale "%F %T"
+
+fromDeg :: Deg -> Double
+fromDeg (Degrees x) = x
+
 pictureDashboard:: World -> Picture
 pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y + 8) $ Scale 0.1 0.1 $
-  Text $ "Azimuth: " ++
-  show (view (wScreen .sDirection . hAzimuth) w) ++
-  " Altitude: " ++
-  show (view (wScreen . sDirection . hAltitude)  w) ++
-  " Distance: " ++
-  show (view (wScreen . sDistance )w)
+  Text $ printf "Azimuth: %.2f  Altitude: %.2f  Distance: %.2f Time: %s Speed: %.2f  Minimal mag: %.2f"
+                (fromDeg (w^.wScreen.sDirection.hAzimuth))
+                (fromDeg (w^.wScreen.sDirection.hAltitude))
+                (w^.wScreen.sDistance)
+                (iso8601  (w^.wCurrentTime))
+                (w^.wTimeFactor)
+                (w^.wMinMag)
   where
     (x, y) = view wLlc w
 
@@ -147,30 +161,39 @@ screenCoordAt:: Screen -> GeoLoc -> UTCTime ->SkyObject-> Maybe(Float,Float)
 screenCoordAt scr geo t so = screenCoord scr (snd (horizontal geo t so))
 
 visibleObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
-visibleObjects w t = mapMaybe f $ view wObjects w
+visibleObjects w t = mapMaybe f $ filter (\x -> magnitude x < w^.wMinMag) (w^.wObjects)
   where
     f so = do
-      c <- screenCoordAt (view wScreen w) (view wGeo w) t so
+      c <- screenCoordAt (w^.wScreen) (w^.wGeo) t so
       return (so, c)
 
-pictureWorld :: World -> IO Picture
+pictureWorld :: World -> Picture
 pictureWorld w =
-  do
-  utc <- getCurrentTime
-  let stars = Pictures $ map pictureSkyObject (visibleObjects w utc)
-  return $ Pictures [stars, pictureDashboard w]
+  let stars = Pictures $ map pictureSkyObject (visibleObjects w (w^.wCurrentTime))
+  in Pictures [stars, pictureDashboard w]
 
 starColor :: Color
 starColor = white
 
-eventHandler :: Event -> World -> IO World
+advanceTime:: Float -> World -> World
+advanceTime t w = over wCurrentTime (addUTCTime (realToFrac (w^.wTimeFactor * t))) w
+
+dmod :: Deg -> Int -> Deg
+dmod (Degrees d) i = Degrees (d `mod'` fromIntegral i)
+
+eventHandler :: Event -> World -> World
 eventHandler ev w =
   case ev of
-    EventKey (SpecialKey KeyLeft) Up _ _  -> return $ over (wScreen . sDirection . hAzimuth) (-3+) w
-    EventKey (SpecialKey KeyRight) Up _ _ -> return $ over (wScreen . sDirection . hAzimuth) (+3) w
-    EventKey (SpecialKey KeyUp) Up _ _    -> return $ over (wScreen . sDirection . hAltitude) (+3) w
-    EventKey (SpecialKey KeyDown) Up _ _  -> return $ over (wScreen . sDirection . hAltitude) (-3+) w
-    EventKey (Char 'w') Up _ _            -> return $ over (wScreen . sDistance) (* 1.1) w
-    EventKey (Char 's') Up _ _            -> return $ over (wScreen . sDistance) (/ 1.1) w
-    EventResize (x, y) -> return $ set wLlc (- x `div` 2, - y `div` 2) w
-    _ -> return  w
+    EventKey (SpecialKey KeyLeft) Up _ _  -> over (wScreen . sDirection . hAzimuth) (\x -> (x-3) `dmod` 360) w
+    EventKey (SpecialKey KeyRight) Up _ _ -> over (wScreen . sDirection . hAzimuth) (\x -> (x+3) `dmod` 360) w
+    EventKey (SpecialKey KeyUp) Up _ _    -> over (wScreen . sDirection . hAltitude) (+3) w
+    EventKey (SpecialKey KeyDown) Up _ _  -> over (wScreen . sDirection . hAltitude) (-3+) w
+    EventKey (Char 'w') Up _ _            -> over (wScreen . sDistance) (* 1.1) w
+    EventKey (Char 's') Up _ _            -> over (wScreen . sDistance) (/ 1.1) w
+    EventKey (Char 'e') Up _ _            -> over wTimeFactor (* 2) w
+    EventKey (Char 'd') Up _ _            -> over wTimeFactor (/ 2) w
+    EventKey (Char 'r') Up _ _            -> over wMinMag (+1) w
+    EventKey (Char 'f') Up _ _            -> over wMinMag (+ (-1)) w
+
+    EventResize (x, y) ->  set wLlc (- x `div` 2, - y `div` 2) w
+    _ ->   w
