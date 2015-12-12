@@ -52,11 +52,11 @@ makeLenses ''Screen
 
 origin :: Screen -> Vector3
 origin (Screen vdir dist) =
-  let snv = cartesian vdir
+  let snv = cartesian (vdir, 1)
   in vnormalise snv |* dist
 
 normalVector :: Screen -> Vector3
-normalVector (Screen vdir _) = cartesian vdir
+normalVector (Screen vdir _) = cartesian (vdir, 1)
 
 grid :: Screen -> (Vector3, Vector3)
 grid (Screen (HorPos az al) _) = (r x, r y)
@@ -72,18 +72,27 @@ screenIntersect s hor = if abs ln > 0.01 && f > 0
                           then Just $ f *| lv
                           else Nothing
   where
-    lv = cartesian hor
+    lv = cartesian (hor, 1)
     ln = lv `vdot` normalVector s
     f = (origin s `vdot` normalVector s) / ln
 
-cartesian :: HorPos -> Vector3
-cartesian (HorPos az al) = Vector3
-  { v3x = sine incl * cosine az
-  , v3y = sine incl * sine az
-  , v3z = cosine incl
+cartesian :: (HorPos, Double) -> Vector3
+cartesian (HorPos az al, r) = Vector3
+  { v3x = r * sine incl * cosine az
+  , v3y = r * sine incl * sine az
+  , v3z = r * cosine incl
   }
   where
     incl = Degrees 90 - al
+
+polair :: Vector3 -> (HorPos, Double)
+polair v = (HorPos (degrees (solveAngle cosfi sinfi)) al, r)
+  where
+    r = vmag v
+    incl = arccosine (v3z v/r)
+    cosfi = v3x v/ sqrt (v3x v * v3x v + v3y v * v3y v)
+    sinfi = v3y v/ sqrt (v3x v * v3x v + v3y v * v3y v)
+    al = 90 - incl
 
 screenCoord :: Screen -> HorPos -> Maybe P.Point
 screenCoord s (HorPos az h)

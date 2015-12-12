@@ -1,5 +1,6 @@
 module HEphem.UISpec where
 
+import           Control.Monad
 import           Data.Angle
 import           Data.Maybe
 import           Data.Vector.Class
@@ -51,7 +52,7 @@ zenithNorthEast1 = Screen zenithNorthEast 100
 
 
 testCartesian :: HorPos -> Vector3 -> Test
-testCartesian hor v = TestCase $ v @=~? cartesian hor
+testCartesian hor v = TestCase $ v @=~? cartesian (hor, 1)
 
 testCartesians :: Test
 testCartesians = TestList
@@ -144,6 +145,17 @@ prop_RelativeCoord s hor = isJust (screenIntersect s hor) && isJust (relativeCoo
       o = origin s
       (v, w) = grid s
 
+instance Arbitrary Vector3 where
+  arbitrary = liftM3 Vector3 nonZero nonZero nonZero
+    where nonZero = suchThat arbitrary (/= 0)
+
+prop_Cartesian_Polair :: Vector3 -> Bool
+prop_Cartesian_Polair v =  cartesian (polair v) =~ v
+
+prop_Polair_Cartesian :: (HorPos, Double) -> Property
+prop_Polair_Cartesian (h, r) =  r > 1 ==> r =~ r' &&  h =~ h'
+  where (h', r') = polair (cartesian (h, r))
+
 -- Main test script
 --
 spec :: SpecWith ()
@@ -204,3 +216,11 @@ spec = describe "UI module" $ do
 
     it "screen intersect matches origin plus linear sum of the grid in zenithNorthEast" $
       property $ prop_ScreenCoord zenithNorthEast1
+
+  describe "Polair and cartesian" $ do
+
+    it "Cartesian after polair is identity" $
+      property prop_Cartesian_Polair
+
+    it "Polair after cartesian is identity" $
+      property prop_Polair_Cartesian
