@@ -23,7 +23,7 @@ main = do
     (InWindow "HEphem" (1024, 768) (10, 10))
     black
     5
-    (World (brightstarlist ++ ngcObjectList) north geoAms (-512, -384) utc 1 1)
+    (World (brightstarlist ++ ngcObjectList) north geoAms (-512, -384) utc 1 6)
     pictureWorld
     eventHandler
     advanceTime
