@@ -167,7 +167,7 @@ pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y
     (x, y) = view wLlc w
 
 screenCoordAt:: Screen -> GeoLoc -> UTCTime ->SkyObject-> Maybe(Float,Float)
-screenCoordAt scr geo t so = screenCoord scr (snd (horizontal geo t so))
+screenCoordAt scr geo t so = screenCoord scr (equatorialToHorizontal geo t (equatorial so))
 
 visibleObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
 visibleObjects w t = mapMaybe f $ filter (\x -> magnitude x < w^.wMinMag) (w^.wObjects)

@@ -13,6 +13,12 @@ type Deg = Degrees Double
 data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)
 
+instance Arbitrary EqPos where
+  arbitrary = do
+    ra <- suchThat arbitrary (\x -> x >= 0 && x <= 360)
+    d <- suchThat arbitrary (\x -> x >= -89 && x < 89)
+    return $ EqPos (Degrees ra) (Degrees d)
+
 data SkyObject =
   NGCObject
   { nID :: String
@@ -57,6 +63,11 @@ instance AEq Double where
 
 instance AEq HorPos where
   x =~ y = abs (_hAzimuth x - _hAzimuth y) < d && abs (_hAltitude x - _hAltitude y) < d
+    where
+      d = 0.1 :: Deg
+
+instance AEq EqPos where
+  x =~ y = abs (eRA x - eRA y) < d && abs (eDec x - eDec y) < d
     where
       d = 0.1 :: Deg
 

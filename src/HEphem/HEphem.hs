@@ -58,10 +58,13 @@ toHorPosCoord lst (GeoLoc fi _) (EqPos ra d) = HorPos az al
     azx = (sine d - sine fi * sine al) / (cosine fi * cosine al)
     az = degrees $ solveAngle azx azy
 
-horizontal :: GeoLoc -> UTCTime -> SkyObject -> (SkyObject, HorPos)
-horizontal loc utc b = (b, toHorPosCoord lst loc (equatorial b))
+equatorialToHorizontal :: GeoLoc -> UTCTime -> EqPos -> HorPos
+equatorialToHorizontal loc utc = toHorPosCoord lst loc
   where
     lst = localSiderealtime loc utc
+
+horizontalToEquatorial :: GeoLoc -> UTCTime -> HorPos -> EqPos
+horizontalToEquatorial  = undefined
 
 data Rectangle = Rectangle Deg Deg Deg Deg
 
@@ -69,8 +72,8 @@ visibleIn :: GeoLoc -> Rectangle -> IO [(SkyObject, HorPos)]
 visibleIn geo (Rectangle minAz maxAz minAl maxAl) =
   do
     t <- getCurrentTime
-    let f = horizontal geo t
-    return $ filter p (map f brightstarlist)
+    let f so = equatorialToHorizontal geo t (equatorial so)
+    return $ filter p (zip brightstarlist (map f brightstarlist))
 
   where
     p (_, HorPos a h) = (minAz <= a) &&

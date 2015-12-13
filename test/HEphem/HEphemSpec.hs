@@ -10,6 +10,7 @@ import           HEphem.TestUtil
 import           Test.Hspec
 import           Test.Hspec.Contrib.HUnit
 import           Test.HUnit
+import           Test.QuickCheck
 
 testSolveAngle :: Test
 testSolveAngle = TestList
@@ -24,8 +25,8 @@ testSolveAngle = TestList
     b = sqrt 2.0 / 2
     qp = pi / 4
 
-testHorizontal :: Test
-testHorizontal = TestList
+testEquatorialToHorizontal :: Test
+testEquatorialToHorizontal = TestList
   [testHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <-
       [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
       , (mirfak, 1, ((130, 17, 32), (86, 21, 34)))
@@ -40,12 +41,23 @@ testHorizontal = TestList
       ]
   ]
   where
-    testHorizontalCoord bstar utc hor = TestCase (snd (horizontal geoAms utc bstar) @=~? hor)
+    testHorizontalCoord bstar utc hor = TestCase (equatorialToHorizontal geoAms utc (equatorial bstar) @=~? hor)
     mkUTCTime x = UTCTime
       { utctDay = fromGregorian 2015 10 19
       , utctDayTime = secondsToDiffTime (x * 3600)
       }
     mkHorzontal ((d, m, s), (d', m', s')) = HorPos (fromDMS d m s) (fromDMS d' m' s')
+
+prop_horToEqAfterHorizontal :: EqPos -> Bool
+prop_horToEqAfterHorizontal eq = horizontalToEquatorial geoAms t (equatorialToHorizontal geoAms t eq) =~ eq
+  where
+    t = UTCTime (ModifiedJulianDay 0) 0
+
+prop_horizontalAfterHorToEq :: HorPos -> Bool
+prop_horizontalAfterHorToEq hor =  equatorialToHorizontal geoAms t (horizontalToEquatorial geoAms t hor) =~ hor
+  where
+    t = UTCTime (ModifiedJulianDay 0) 0
+
 
 spec :: SpecWith ()
 spec = describe "HEphem" $
@@ -61,5 +73,12 @@ spec = describe "HEphem" $
     describe "solveAngle matches for  test values" $
       fromHUnitTest testSolveAngle
 
-    describe "horizontal for a series of test values" $
-      fromHUnitTest testHorizontal
+    describe "equatorialToHorizontal for a series of test values" $
+      fromHUnitTest testEquatorialToHorizontal
+
+    describe "horizontalToEquatorial" $ do
+      it "is left inverse of equatorialToHorizontal" $ property
+        prop_horToEqAfterHorizontal;
+
+      it "is right inverse of equatorialToHorizontal" $ property
+        prop_horizontalAfterHorToEq;
