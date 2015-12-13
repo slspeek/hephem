@@ -63,8 +63,21 @@ equatorialToHorizontal loc utc = toHorPosCoord lst loc
   where
     lst = localSiderealtime loc utc
 
+toEqPosCoord :: Deg -> GeoLoc -> HorPos -> EqPos
+toEqPosCoord  lst (GeoLoc fi _) (HorPos az al) = EqPos ra d
+  where
+    d = arcsine $ sine al * sine fi + cosine al * cosine fi * cosine az
+    lha = degrees $ solveAngle lhax lhay
+    lhay = - sine az * cosine al / cosine d
+    lhax = (sine al - sine d * sine fi) / (cosine d * cosine fi)
+    ra' = lst - lha
+    ra = if ra' < 0 then ra' + 360 else ra'
+
 horizontalToEquatorial :: GeoLoc -> UTCTime -> HorPos -> EqPos
-horizontalToEquatorial  = undefined
+horizontalToEquatorial  loc utc = toEqPosCoord lst loc
+  where
+    lst = localSiderealtime loc utc
+
 
 data Rectangle = Rectangle Deg Deg Deg Deg
 

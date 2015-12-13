@@ -149,8 +149,8 @@ instance Arbitrary Vector3 where
   arbitrary = liftM3 Vector3 nonZero nonZero nonZero
     where nonZero = suchThat arbitrary (/= 0)
 
-prop_Cartesian_Polair :: Vector3 -> Bool
-prop_Cartesian_Polair v =  cartesian (polair v) =~ v
+prop_Cartesian_Polair :: Vector3 -> Property
+prop_Cartesian_Polair v =  (vmag v < 1000) ==> cartesian (polair v) =~ v
 
 prop_Polair_Cartesian :: (HorPos, Double) -> Property
 prop_Polair_Cartesian (h, r) =  r > 1 ==> r =~ r' &&  h =~ h'

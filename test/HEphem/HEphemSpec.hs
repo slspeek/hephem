@@ -48,16 +48,26 @@ testEquatorialToHorizontal = TestList
       }
     mkHorzontal ((d, m, s), (d', m', s')) = HorPos (fromDMS d m s) (fromDMS d' m' s')
 
-prop_horToEqAfterHorizontal :: EqPos -> Bool
-prop_horToEqAfterHorizontal eq = horizontalToEquatorial geoAms t (equatorialToHorizontal geoAms t eq) =~ eq
-  where
-    t = UTCTime (ModifiedJulianDay 0) 0
+prop_horToEqAfterEqToHor :: EqPos -> Bool
+prop_horToEqAfterEqToHor eq = horToEqAfterEqToHor eq =~ eq
 
-prop_horizontalAfterHorToEq :: HorPos -> Bool
-prop_horizontalAfterHorToEq hor =  equatorialToHorizontal geoAms t (horizontalToEquatorial geoAms t hor) =~ hor
-  where
-    t = UTCTime (ModifiedJulianDay 0) 0
+prop_eqToHorAfterHorToEq :: HorPos -> Bool
+prop_eqToHorAfterHorToEq hor =  eqToHorAfterHorToEq hor =~ hor
 
+fixedEqToHor :: EqPos -> HorPos
+fixedEqToHor = toHorPosCoord lstTV geoAms
+
+lstTV::Deg
+lstTV = localSiderealtime geoAms (UTCTime (fromGregorian 2015 10 19) 0)
+
+fixedHorToEq :: HorPos -> EqPos
+fixedHorToEq = toEqPosCoord  lstTV geoAms
+
+eqToHorAfterHorToEq:: HorPos -> HorPos
+eqToHorAfterHorToEq hor = fixedEqToHor (fixedHorToEq hor)
+
+horToEqAfterEqToHor :: EqPos -> EqPos
+horToEqAfterEqToHor eq = fixedHorToEq (fixedEqToHor eq)
 
 spec :: SpecWith ()
 spec = describe "HEphem" $
@@ -78,7 +88,7 @@ spec = describe "HEphem" $
 
     describe "horizontalToEquatorial" $ do
       it "is left inverse of equatorialToHorizontal" $ property
-        prop_horToEqAfterHorizontal;
+        prop_horToEqAfterEqToHor;
 
       it "is right inverse of equatorialToHorizontal" $ property
-        prop_horizontalAfterHorToEq;
+        prop_eqToHorAfterHorToEq;
