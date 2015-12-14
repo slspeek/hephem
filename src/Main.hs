@@ -10,7 +10,7 @@ import           HEphem.NGCParser
 import           HEphem.UI
 
 north :: Screen
-north = Screen (HorPos (Degrees 0) (Degrees 52)) 100
+north = Screen (HorPos (Degrees 0) (Degrees 52)) 1000
 
 main :: IO ()
 main = do
@@ -23,7 +23,7 @@ main = do
     (InWindow "HEphem" (1024, 768) (10, 10))
     black
     5
-    (World (brightstarlist ++ ngcObjectList) north geoAms (-512, -384) utc 1 6)
+    (World (brightstarlist ++ ngcObjectList) north geoAms (-512, -384) utc 1 6 Nothing)
     pictureWorld
     eventHandler
     advanceTime

@@ -7,6 +7,7 @@ import           Test.QuickCheck
 import           Data.Vector.Class ()
 import           Data.Vector.V3
 import           Control.Lens                     hiding (element)
+import           Text.Printf
 
 type Deg = Degrees Double
 
@@ -50,6 +51,10 @@ equatorial (NGCObject _ _ _ _ _ r d _ ) = EqPos r d
 magnitude:: SkyObject -> Float
 magnitude (BrightStar _ _ _ _ _ m _ _ _) = m
 magnitude (NGCObject _ _ _ _ _ _ _ m ) = m
+
+description :: SkyObject -> String
+description (BrightStar n hr _ _ _ m _ _ _) = printf "%s HR# %v Mag %.1f" n hr m
+description (NGCObject i _ _ t _ _ _ m ) = printf "%s Type %s Mag %.1f" i t m
 
 sType:: SkyObject -> String
 sType BrightStar{} = "Star"

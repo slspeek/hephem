@@ -2,10 +2,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 
+-- | http://star-www.st-and.ac.uk/~fv/webnotes/chapter7.htm
 module HEphem.HEphem where
 
 import           Data.Angle
 import           Data.Fixed         (mod')
+import qualified Data.Map           as Map
+import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Data.Vector.Class  ()
@@ -78,6 +81,12 @@ horizontalToEquatorial  loc utc = toEqPosCoord lst loc
   where
     lst = localSiderealtime loc utc
 
+findNear :: [SkyObject] -> EqPos -> Double -> Maybe SkyObject
+findNear ss eq d = listToMaybe [ s | (sd, s) <- [closest], sd < d]
+  where
+    distances = zip (map (dis eq . equatorial) ss) ss
+    closest = Map.findMin $ Map.fromList distances
+    dis (EqPos (Degrees x)(Degrees y)) (EqPos(Degrees x')(Degrees y')) = sqrt $ (x - x') * (x - x') + (y -y') * (y - y')
 
 data Rectangle = Rectangle Deg Deg Deg Deg
 

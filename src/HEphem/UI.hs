@@ -30,13 +30,14 @@ instance Arbitrary Screen where
 
 -- | World in the Gloss Game sense
 data World = World
-  { _wObjects     :: [SkyObject]
-  , _wScreen      :: Screen
-  , _wGeo         :: GeoLoc
-  , _wLlc         :: (Int, Int)
-  , _wCurrentTime :: UTCTime
-  , _wTimeFactor  :: Float
-  , _wMinMag      :: Float
+  { _wObjects              :: [SkyObject]
+  , _wScreen               :: Screen
+  , _wGeo                  :: GeoLoc
+  , _wLlc                  :: (Int, Int)
+  , _wCurrentTime          :: UTCTime
+  , _wTimeFactor           :: Float
+  , _wMinMag               :: Float
+  , _wHighlightedSkyObject :: Maybe SkyObject
   }
   deriving (Show)
 
@@ -139,12 +140,12 @@ pictureSkyObject (so, pos)  = case so of NGCObject{} -> pictureNGCObject so pos
 
 
 pictureStar:: SkyObject -> (Float,Float) -> Picture
-pictureStar s (x, y) = Color white . Translate (10 * x) (10 * y) $ circleSolid (max 1 (6 - magnitude s))
+pictureStar s (x, y) = Color white . Translate x y $ circleSolid (max 1 (6 - magnitude s))
 
 pictureNGCObject:: SkyObject -> (Float,Float) -> Picture
 pictureNGCObject n (x, y) = Pictures
-  [ Color blue . Translate (10 * x) (10 * y) $ circle (max 1 (6 - magnitude n))
-  , Color blue . Translate (10 * x + 10) (10 * y - 10) $ Scale 0.1 0.1 $ text (nMessier n)
+  [ Color blue . Translate x y $ circle (max 1 (6 - magnitude n))
+  , Color blue . Translate (x + 10) (y - 10) $ Scale 0.1 0.1 $ text (nMessier n)
   ]
 
 
@@ -156,7 +157,7 @@ fromDeg (Degrees x) = x
 
 pictureDashboard:: World -> Picture
 pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y + 8) $ Scale 0.1 0.1 $
-  Text $ printf "Azimuth: %.2f  Altitude: %.2f  Distance: %.2f Time: %s Speed: %.2f  Minimal mag: %.2f"
+  Text $ printf "Azimuth: %.2f  Altitude: %.2f  Distance: %.2f Time: %s Speed: %.2f  Minimal mag: %.0f"
                 (fromDeg (w^.wScreen.sDirection.hAzimuth))
                 (fromDeg (w^.wScreen.sDirection.hAltitude))
                 (w^.wScreen.sDistance)
@@ -164,10 +165,15 @@ pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y
                 (w^.wTimeFactor)
                 (w^.wMinMag)
   where
-    (x, y) = view wLlc w
+    (x, y) = w^.wLlc
 
 screenCoordAt:: Screen -> GeoLoc -> UTCTime ->SkyObject-> Maybe(Float,Float)
 screenCoordAt scr geo t so = screenCoord scr (equatorialToHorizontal geo t (equatorial so))
+
+screenCoordToHorPos :: Screen -> (Float, Float) -> HorPos
+screenCoordToHorPos s (x, y) = fst (polair ( origin s + float2Double x *| v  +  float2Double y *| w))
+  where
+    (v, w) = grid s
 
 visibleObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
 visibleObjects w t = mapMaybe f $ filter (\x -> magnitude x < w^.wMinMag) (w^.wObjects)
@@ -176,10 +182,23 @@ visibleObjects w t = mapMaybe f $ filter (\x -> magnitude x < w^.wMinMag) (w^.wO
       c <- screenCoordAt (w^.wScreen) (w^.wGeo) t so
       return (so, c)
 
+pictureHighlightedObject ::World ->  SkyObject -> Picture
+pictureHighlightedObject w s = case mc of Just (x,y) -> pict x y
+                                          _          -> Blank
+  where
+      mc = screenCoordAt (w^.wScreen) (w^.wGeo) (w^.wCurrentTime) s
+      pict x y = Pictures
+        [ Color green . Translate x y $ circle (max 1 (6 - magnitude s))
+        , Color green . Translate (x + 10) (y - 10) $ Scale 0.1 0.1 $ text (description s)
+        ]
+
+
 pictureWorld :: World -> Picture
 pictureWorld w =
-  let stars = Pictures $ map pictureSkyObject (visibleObjects w (w^.wCurrentTime))
-  in Pictures [stars, pictureDashboard w]
+  let stars = Pictures $ map pictureSkyObject (visibleObjects w (w^.wCurrentTime));
+      highlight = maybe Blank (pictureHighlightedObject w) (w ^. wHighlightedSkyObject)
+  in Pictures [stars, pictureDashboard w, highlight]
+
 
 starColor :: Color
 starColor = white
@@ -189,6 +208,12 @@ advanceTime t w = over wCurrentTime (addUTCTime (realToFrac (w^.wTimeFactor * t)
 
 dmod :: Deg -> Int -> Deg
 dmod (Degrees d) i = Degrees (d `mod'` fromIntegral i)
+
+findSkyObject:: World -> (Float,Float) -> Maybe SkyObject
+findSkyObject w p = findNear (w^.wObjects) eq 2
+  where
+    hor = screenCoordToHorPos (w^.wScreen) p
+    eq = horizontalToEquatorial (w^.wGeo) (w^.wCurrentTime) hor
 
 eventHandler :: Event -> World -> World
 eventHandler ev w =
@@ -203,6 +228,6 @@ eventHandler ev w =
     EventKey (Char 'd') Up _ _            -> over wTimeFactor (/ 2) w
     EventKey (Char 'r') Up _ _            -> over wMinMag (+1) w
     EventKey (Char 'f') Up _ _            -> over wMinMag (+ (-1)) w
-
+    EventKey (MouseButton LeftButton) Up _ (x,y) ->  set wHighlightedSkyObject (findSkyObject w (x,y)) w
     EventResize (x, y) ->  set wLlc (- x `div` 2, - y `div` 2) w
     _ ->   w
