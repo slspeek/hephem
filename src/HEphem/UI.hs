@@ -104,6 +104,12 @@ screenCoord s (HorPos az h)
         Nothing -> Nothing
   | otherwise = Nothing
 
+screenCoordToHorPos :: Screen -> (Float, Float) -> HorPos
+screenCoordToHorPos s (x, y) = fst (polair ( origin s + float2Double x *| v  +  float2Double y *| w))
+  where
+    (v, w) = grid s
+
+
 relativeCoord :: Screen -> Vector3 -> Maybe P.Point
 relativeCoord s w = fmap (double2Float *** double2Float) (solveLinearEq (grid s) v)
   where
@@ -169,11 +175,6 @@ pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y
 
 screenCoordAt:: Screen -> GeoLoc -> UTCTime ->SkyObject-> Maybe(Float,Float)
 screenCoordAt scr geo t so = screenCoord scr (equatorialToHorizontal geo t (equatorial so))
-
-screenCoordToHorPos :: Screen -> (Float, Float) -> HorPos
-screenCoordToHorPos s (x, y) = fst (polair ( origin s + float2Double x *| v  +  float2Double y *| w))
-  where
-    (v, w) = grid s
 
 visibleObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
 visibleObjects w t = mapMaybe f $ filter (\x -> magnitude x < w^.wMinMag) (w^.wObjects)

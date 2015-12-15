@@ -136,6 +136,18 @@ prop_ScreenCoord s hor = isJust (screenCoord s hor) && isJust (screenIntersect s
       (v, w) = grid s
       i = fromJust $ screenIntersect s hor
 
+prop_ScreenCoordToHorPos :: Screen -> (Float, Float) -> Property
+prop_ScreenCoordToHorPos s c = isJust identity ==> x =~ x' && y =~ y'
+  where
+    (x, y) = fromJust identity
+    identity = screenCoord s (screenCoordToHorPos s c)
+    (x', y') = c
+
+prop_ScreenCoordToHorPos2 :: Screen -> HorPos -> Property
+prop_ScreenCoordToHorPos2 s h = isJust c ==> screenCoordToHorPos s (fromJust c) =~ h
+  where
+    c = screenCoord s h
+
 prop_RelativeCoord :: Screen -> HorPos -> Property
 prop_RelativeCoord s hor = isJust (screenIntersect s hor) && isJust (relativeCoord s (fromJust(screenIntersect s hor))) ==>
   vmag (o +  float2Double x *| v + float2Double y *| w - i) < 0.1
@@ -224,3 +236,11 @@ spec = describe "UI module" $ do
 
     it "Polair after cartesian is identity" $
       property prop_Polair_Cartesian
+
+  describe "screenCoord and screenCoordToHorPos" $ do
+
+    it "screenCoord after screenCoordToHorPos should be the identity" $
+      property prop_ScreenCoordToHorPos
+
+    it "screenCoordToHorPos after screenCoord should be the identity" $
+      property prop_ScreenCoordToHorPos2
