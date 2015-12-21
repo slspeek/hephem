@@ -3,10 +3,8 @@ module Main where
 import           Data.Angle
 import           Data.Time.Clock
 import           Graphics.Gloss.Interface.Pure.Game
-import           HEphem.BSParser
 import           HEphem.Data
 import           HEphem.HEphem
-import           HEphem.NGCParser
 import           HEphem.UI
 
 north :: Screen
@@ -23,7 +21,7 @@ main = do
     (InWindow "HEphem" (1024, 768) (10, 10))
     black
     5
-    (World (brightstarlist ++ ngcObjectList) north geoAms (-512, -384) utc 1 6 Nothing)
+    (World allSkyObjects north geoAms (-512, -384) utc 1 6 Nothing)
     pictureWorld
     eventHandler
     advanceTime

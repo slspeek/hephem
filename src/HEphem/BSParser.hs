@@ -18,12 +18,12 @@ import           Text.ParserCombinators.ReadP
 brightstartext :: IsString a => a
 brightstartext = $(embedStringFile "brightstar_2015/brightstar_2015.txt")
 
-brightstarlist :: [SkyObject]
+brightstarlist :: [BrightStar]
 brightstarlist =
   let starlines = (drop 5 . lines) brightstartext
   in map (fst . last . readP_to_S starReadP) starlines
 
-starReadP :: ReadP SkyObject
+starReadP :: ReadP BrightStar
 starReadP = do
   name <- readName
   _ <- space
@@ -43,14 +43,13 @@ starReadP = do
   _ <- space
   spec <- readSpectralType
 
-  return
-    BrightStar
+  return BrightStar
       { bName = name
       , bHRNo = hr
       , bRA = ra
       , bDec = d
       , bNotes = notes
-      , bMagitude = mag
+      , bMag = mag
       , bUminB = uminB
       , bBminV = bminV
       , bSpectralType = spec
@@ -63,7 +62,10 @@ getn :: Int -> ReadP String
 getn n = count n get
 
 readName :: ReadP String
-readName = getn 19
+readName = do
+  _ <- getn 6
+  getn 13
+
 
 readHRNo :: ReadP Int
 readHRNo = do

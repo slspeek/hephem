@@ -21,7 +21,7 @@ spec = describe "BrightStar parser" $ do
 
   it "matches values for mirfak" $ do
     bHRNo mirfak @?= 1017
-    bMagitude mirfak @=~? 1.79
+    bMag mirfak @=~? 1.79
     fromJust (bUminB mirfak) @=~? 0.37
     bBminV mirfak @=~? 0.48
 

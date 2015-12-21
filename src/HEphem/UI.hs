@@ -77,23 +77,6 @@ screenIntersect s hor = if abs ln > 0.01 && f > 0
     ln = lv `vdot` normalVector s
     f = (origin s `vdot` normalVector s) / ln
 
-cartesian :: (HorPos, Double) -> Vector3
-cartesian (HorPos az al, r) = Vector3
-  { v3x = r * sine incl * cosine az
-  , v3y = r * sine incl * sine az
-  , v3z = r * cosine incl
-  }
-  where
-    incl = Degrees 90 - al
-
-polair :: Vector3 -> (HorPos, Double)
-polair v = (HorPos (degrees (solveAngle cosfi sinfi)) al, r)
-  where
-    r = vmag v
-    incl = arccosine (v3z v/r)
-    cosfi = v3x v/ sqrt (v3x v * v3x v + v3y v * v3y v)
-    sinfi = v3y v/ sqrt (v3x v * v3x v + v3y v * v3y v)
-    al = 90 - incl
 
 screenCoord :: Screen -> HorPos -> Maybe P.Point
 screenCoord s (HorPos az h)
@@ -141,16 +124,16 @@ useToSolve accA accB (v, w) a = (p, q)
 
 
 pictureSkyObject:: (SkyObject, (Float, Float))-> Picture
-pictureSkyObject (so, pos)  = case so of NGCObject{} -> pictureNGCObject so pos
-                                         BrightStar{} -> pictureStar so pos
+pictureSkyObject (NGC so, pos)  = pictureNGCObject so pos
+pictureSkyObject (Star so, pos) = pictureStar so pos
 
 
-pictureStar:: SkyObject -> (Float,Float) -> Picture
-pictureStar s (x, y) = Color white . Translate x y $ circleSolid (max 1 (6 - magnitude s))
+pictureStar:: BrightStar -> (Float,Float) -> Picture
+pictureStar s (x, y) = Color white . Translate x y $ circleSolid (max 1 (6 - bMag s))
 
-pictureNGCObject:: SkyObject -> (Float,Float) -> Picture
+pictureNGCObject:: NGCObject -> (Float,Float) -> Picture
 pictureNGCObject n (x, y) = Pictures
-  [ Color blue . Translate x y $ circle (max 1 (6 - magnitude n))
+  [ Color blue . Translate x y $ circle (max 1 (6 - nMag n))
   , Color blue . Translate (x + 10) (y - 10) $ Scale 0.1 0.1 $ text (nMessier n)
   ]
 

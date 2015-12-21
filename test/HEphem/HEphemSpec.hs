@@ -1,6 +1,7 @@
 module HEphem.HEphemSpec where
 
 import           Data.Angle
+import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
 import           HEphem.BSParser
@@ -28,16 +29,16 @@ testSolveAngle = TestList
 testEquatorialToHorizontal :: Test
 testEquatorialToHorizontal = TestList
   [testHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <-
-      [ (mirfak, 0, ((93, 40, 15), (77, 39, 8)))
-      , (mirfak, 1, ((130, 17, 32), (86, 21, 34)))
-      , (mirfak, 3, ((271, 40, 38), (73, 44, 8)))
-      , (mirfak, 4, ((280, 57, 11), (64, 37, 3)))
-      , (mirfak, 6, ((296, 16, 44), (47, 15, 58)))
-      , (betelgeuse, 0, ((112, 46, 12), (25, 36, 6)))
-      , (betelgeuse, 1, ((127, 18, 57), (33, 32, 49)))
-      , (betelgeuse, 2, ((144, 10, 3), (39, 57, 37)))
-      , (betelgeuse, 3, ((163, 31, 58), (44, 1, 4)))
-      , (northskypole, 0, ((0, 0, 0), (52, 20, 0)))
+      [ (Star mirfak, 0, ((93, 40, 15), (77, 39, 8)))
+      , (Star mirfak, 1, ((130, 17, 32), (86, 21, 34)))
+      , (Star mirfak, 3, ((271, 40, 38), (73, 44, 8)))
+      , (Star mirfak, 4, ((280, 57, 11), (64, 37, 3)))
+      , (Star mirfak, 6, ((296, 16, 44), (47, 15, 58)))
+      , (Star betelgeuse, 0, ((112, 46, 12), (25, 36, 6)))
+      , (Star betelgeuse, 1, ((127, 18, 57), (33, 32, 49)))
+      , (Star betelgeuse, 2, ((144, 10, 3), (39, 57, 37)))
+      , (Star betelgeuse, 3, ((163, 31, 58), (44, 1, 4)))
+      , (Star northskypole, 0, ((0, 0, 0), (52, 20, 0)))
       ]
   ]
   where
@@ -58,7 +59,7 @@ fixedEqToHor :: EqPos -> HorPos
 fixedEqToHor = toHorPosCoord lstTV geoAms
 
 lstTV::Deg
-lstTV = localSiderealtime geoAms (UTCTime (fromGregorian 2015 10 19) 0)
+lstTV = localSiderealtime geoAms tzero
 
 fixedHorToEq :: HorPos -> EqPos
 fixedHorToEq = toEqPosCoord  lstTV geoAms
@@ -68,6 +69,11 @@ eqToHorAfterHorToEq hor = fixedEqToHor (fixedHorToEq hor)
 
 horToEqAfterEqToHor :: EqPos -> EqPos
 horToEqAfterEqToHor eq = fixedHorToEq (fixedEqToHor eq)
+
+prop_FindNear :: Bool
+prop_FindNear = and [ s == fromJust (findNear visibles (equatorial s) 0.001) | s <- visibles]
+  where
+    visibles = [s | s<-allSkyObjects, magnitude s < 4.40]
 
 spec :: SpecWith ()
 spec = describe "HEphem" $
@@ -92,3 +98,6 @@ spec = describe "HEphem" $
 
       it "is right inverse of equatorialToHorizontal" $ property
         prop_eqToHorAfterHorToEq;
+    describe "findNear" $
+      it "finds a skyobject on its own coords" $ property
+        prop_FindNear

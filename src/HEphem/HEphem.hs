@@ -11,9 +11,10 @@ import qualified Data.Map           as Map
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
-import           Data.Vector.Class  ()
+import           Data.Vector.Class
 import           HEphem.BSParser
 import           HEphem.Data
+import           HEphem.NGCParser
 import           HEphem.ParserUtil
 
 geoAms :: GeoLoc
@@ -22,6 +23,9 @@ geoAms = GeoLoc (fromDMS 52 21 0) (fromDMS 4 51 59)
 fracDays :: UTCTime -> Double
 fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
                                                                    (toRational (utctDayTime u)) / 86400)
+
+allSkyObjects :: [SkyObject]
+allSkyObjects = map Star brightstarlist ++ map NGC ngcObjectList
 
 siderealtime :: UTCTime -> Deg
 siderealtime utc = Degrees $ 15 * sidtimeDecimalHours
@@ -45,12 +49,6 @@ localSiderealtime (GeoLoc _ long) utc = Degrees $ lst `mod'` 360
   where
     (Degrees lst) = siderealtime utc + long
 
-{--| Given cos A and sin A solve A --}
-solveAngle :: Double -> Double -> Radians Double
-solveAngle c s
-  | s > 0 = arccosine c
-  | c > 0 = Radians (2 * pi) + arcsine s
-  | otherwise = Radians (2 * pi) - arccosine c
 
 toHorPosCoord :: Deg -> GeoLoc -> EqPos -> HorPos
 toHorPosCoord lst (GeoLoc fi _) (EqPos ra d) = HorPos az al
@@ -86,7 +84,7 @@ findNear ss eq d = listToMaybe [ s | (sd, s) <- [closest], sd < d]
   where
     distances = zip (map (dis eq . equatorial) ss) ss
     closest = Map.findMin $ Map.fromList distances
-    dis (EqPos (Degrees x)(Degrees y)) (EqPos(Degrees x')(Degrees y')) = sqrt $ (x - x') * (x - x') + (y -y') * (y - y')
+    dis (EqPos x y) (EqPos x' y') = vmag $ cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)
 
 data Rectangle = Rectangle Deg Deg Deg Deg
 
@@ -95,7 +93,7 @@ visibleIn geo (Rectangle minAz maxAz minAl maxAl) =
   do
     t <- getCurrentTime
     let f so = equatorialToHorizontal geo t (equatorial so)
-    return $ filter p (zip brightstarlist (map f brightstarlist))
+    return $ filter p (zip allSkyObjects (map f allSkyObjects))
 
   where
     p (_, HorPos a h) = (minAz <= a) &&
@@ -104,9 +102,7 @@ visibleIn geo (Rectangle minAz maxAz minAl maxAl) =
                         (maxAl >= h)
 
 pretty :: (SkyObject, HorPos) -> String
-pretty (b, HorPos a h) = bName b ++
-                         " " ++
-                         show (bMagitude b) ++
+pretty (b, HorPos a h) =  show (magnitude b) ++
                          " Azi: " ++
                          show d ++
                          "*" ++

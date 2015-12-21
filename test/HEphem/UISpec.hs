@@ -7,6 +7,7 @@ import           Data.Vector.Class
 import           Data.Vector.V3
 import           GHC.Float
 import           HEphem.Data
+import           HEphem.HEphem
 import           HEphem.TestUtil
 import           HEphem.UI
 import           Test.Hspec
@@ -156,6 +157,10 @@ prop_RelativeCoord s hor = isJust (screenIntersect s hor) && isJust (relativeCoo
       i = fromJust $ screenIntersect s hor
       o = origin s
       (v, w) = grid s
+
+testWorld :: World
+testWorld = World allSkyObjects north1 geoAms (-512, -384) tzero 1 6 Nothing
+
 
 instance Arbitrary Vector3 where
   arbitrary = liftM3 Vector3 nonZero nonZero nonZero

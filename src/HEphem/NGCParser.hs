@@ -18,7 +18,7 @@ readMaybeFloatWithComma =  readMaybe . sanitize
 ngcobjecttext :: IsString a => a
 ngcobjecttext = $(embedStringFile "ngc-ic2000/ngc-ic2000.csv")
 
-ngcObjectList :: [SkyObject]
+ngcObjectList :: [NGCObject]
 ngcObjectList = mapMaybe readNGCObject (lines ngcobjecttext)
 
 readRecord :: String -> [String]
@@ -26,7 +26,7 @@ readRecord = fst . last . readP_to_S p
   where
       p = sepBy (many (satisfy (/='|')))(char '|')
 
-readNGCObject :: String -> Maybe SkyObject
+readNGCObject :: String -> Maybe NGCObject
 readNGCObject st = do
   h <- readMaybe (l !! 5)
   m <- readMaybe (l !! 7)
