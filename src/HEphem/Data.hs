@@ -21,6 +21,22 @@ instance Arbitrary EqPos where
     d <- suchThat arbitrary (\x -> x >= -89 && x < 89)
     return $ EqPos (Degrees ra) (Degrees d)
 
+data HorPos = HorPos { _hAzimuth,_hAltitude :: Deg }
+  deriving (Eq, Show)
+
+instance Arbitrary HorPos where
+  arbitrary = do
+    az <- suchThat arbitrary (\x -> x >= 0 && x <= 360)
+    al <- suchThat arbitrary (\x -> x >= 0 && x <= 90)
+    return $ HorPos (Degrees az) (Degrees al)
+
+makeLenses ''HorPos
+
+data GeoLoc = GeoLoc { _gLatitude,_gLongitude :: Deg }
+  deriving (Eq, Show)
+
+makeLenses ''GeoLoc
+
 data BrightStar = BrightStar
           { bName         :: String
           , bHRNo         :: Int
@@ -47,13 +63,10 @@ data NGCObject = NGCObject
 
 data SkyObject = NGC NGCObject|Star BrightStar deriving (Show)
 
-
-
 instance Eq SkyObject where
   Star a == Star b = a == b
   NGC  a == NGC b  = a == b
   _      ==  _     = False
-
 
 equatorial:: SkyObject -> EqPos
 equatorial (Star (BrightStar _ _ r d _ _ _ _ _)) = EqPos r d
@@ -98,21 +111,6 @@ instance (AEq a) => AEq (Degrees a) where
 
 instance (AEq a) => AEq (Radians a) where
   (Radians x) =~ (Radians y) = x =~ y
-
-data GeoLoc = GeoLoc { _gLatitude,_gLongitude :: Deg }
-  deriving (Eq, Show)
-
-data HorPos = HorPos { _hAzimuth,_hAltitude :: Deg }
-  deriving (Eq, Show)
-
-makeLenses ''GeoLoc
-makeLenses ''HorPos
-
-instance Arbitrary HorPos where
-  arbitrary = do
-    az <- suchThat arbitrary (\x -> x >= 0 && x <= 360)
-    al <- suchThat arbitrary (\x -> x >= 0 && x <= 90)
-    return $ HorPos (Degrees az) (Degrees al)
 
 {--| Given cos A and sin A solve A --}
 solveAngle :: Double -> Double -> Radians Double

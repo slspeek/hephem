@@ -15,18 +15,6 @@ import           Test.Hspec.Contrib.HUnit (fromHUnitTest)
 import           Test.HUnit
 import           Test.QuickCheck
 
-flatNorth :: HorPos
-flatNorth = HorPos (Degrees 0) (Degrees 0)
-
-zenithNorthEast :: HorPos
-zenithNorthEast = HorPos (Degrees 45) (Degrees 90)
-
-zenithNorth :: HorPos
-zenithNorth = HorPos (Degrees 0) (Degrees 90)
-
-flatEast :: HorPos
-flatEast = HorPos (Degrees 90) (Degrees 0)
-
 flatNorth1 :: Screen
 flatNorth1 = Screen flatNorth 1
 
@@ -36,30 +24,15 @@ flatEast1 = Screen flatEast 1
 zenithNorth1 :: Screen
 zenithNorth1 = Screen zenithNorth 1
 
-north :: HorPos
-north = HorPos (Degrees 0) (Degrees 45)
 
 north1 :: Screen
 north1 = Screen north 1
-
-northEast :: HorPos
-northEast = HorPos (Degrees 45) (Degrees 45)
 
 northEast1 :: Screen
 northEast1 = Screen northEast 1
 
 zenithNorthEast1 :: Screen
 zenithNorthEast1 = Screen zenithNorthEast 100
-
-
-testCartesian :: HorPos -> Vector3 -> Test
-testCartesian hor v = TestCase $ v @=~? cartesian (hor, 1)
-
-testCartesians :: Test
-testCartesians = TestList
-                   [testCartesian h v | (h, v) <- [ (north, Vector3 (sqrt 2 / 2) 0 (sqrt 2 / 2))
-                                                  , (northEast, Vector3 (1 / 2) (1 / 2) (sqrt 2 / 2))
-                                                  ]]
 
 testGrids :: Test
 testGrids = TestList
@@ -161,24 +134,10 @@ prop_RelativeCoord s hor = isJust (screenIntersect s hor) && isJust (relativeCoo
 testWorld :: World
 testWorld = World allSkyObjects north1 geoAms (-512, -384) tzero 1 6 Nothing
 
-
-instance Arbitrary Vector3 where
-  arbitrary = liftM3 Vector3 nonZero nonZero nonZero
-    where nonZero = suchThat arbitrary (/= 0)
-
-prop_Cartesian_Polair :: Vector3 -> Property
-prop_Cartesian_Polair v =  (vmag v < 1000) ==> cartesian (polair v) =~ v
-
-prop_Polair_Cartesian :: (HorPos, Double) -> Property
-prop_Polair_Cartesian (h, r) =  r > 1 ==> r =~ r' &&  h =~ h'
-  where (h', r') = polair (cartesian (h, r))
-
 -- Main test script
 --
 spec :: SpecWith ()
 spec = describe "UI module" $ do
-  describe "cartesian" $
-    fromHUnitTest testCartesians
 
   describe "grid" $ do
     describe "holds for some values" $
@@ -233,14 +192,6 @@ spec = describe "UI module" $ do
 
     it "screen intersect matches origin plus linear sum of the grid in zenithNorthEast" $
       property $ prop_ScreenCoord zenithNorthEast1
-
-  describe "Polair and cartesian" $ do
-
-    it "Cartesian after polair is identity" $
-      property prop_Cartesian_Polair
-
-    it "Polair after cartesian is identity" $
-      property prop_Polair_Cartesian
 
   describe "screenCoord and screenCoordToHorPos" $ do
 

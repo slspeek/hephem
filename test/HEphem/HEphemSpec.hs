@@ -13,19 +13,6 @@ import           Test.Hspec.Contrib.HUnit
 import           Test.HUnit
 import           Test.QuickCheck
 
-testSolveAngle :: Test
-testSolveAngle = TestList
-  [TestCase (solveAngle c s @=~? Radians a) | (c, s, a) <-
-    [ (b, b, qp)
-    , (-b, b, pi - qp)
-    , (-b, -b, pi + qp)
-    , (b, -b, 2 * pi - qp)
-    ]
-  ]
-  where
-    b = sqrt 2.0 / 2
-    qp = pi / 4
-
 testEquatorialToHorizontal :: Test
 testEquatorialToHorizontal = TestList
   [testHorizontalCoord s (mkUTCTime u) (mkHorzontal h) | (s, u, h) <-
@@ -71,9 +58,9 @@ horToEqAfterEqToHor :: EqPos -> EqPos
 horToEqAfterEqToHor eq = fixedHorToEq (fixedEqToHor eq)
 
 prop_FindNear :: Bool
-prop_FindNear = and [ s == fromJust (findNear visibles (equatorial s) 0.001) | s <- visibles]
+prop_FindNear = and [ equatorial s == (equatorial . fromJust) (findNear visibles (equatorial s) 0.001) | s <- visibles]
   where
-    visibles = [s | s<-allSkyObjects, magnitude s < 4.40]
+    visibles = [s | s<-allSkyObjects, magnitude s < 4]
 
 spec :: SpecWith ()
 spec = describe "HEphem" $
@@ -85,9 +72,6 @@ spec = describe "HEphem" $
     it "siderealtime at 2015 10 1" $ do
       let utc = UTCTime { utctDay = fromGregorian 2015 10 1, utctDayTime = secondsToDiffTime 0 }
       (abs (fromHMS 0 37 38 - siderealtime utc) < 1.0e-2) @?= True
-
-    describe "solveAngle matches for  test values" $
-      fromHUnitTest testSolveAngle
 
     describe "equatorialToHorizontal for a series of test values" $
       fromHUnitTest testEquatorialToHorizontal

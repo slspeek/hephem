@@ -1,11 +1,15 @@
 module HEphem.TestUtil where
 
+import           Data.Angle
 import           Data.Time.Calendar
 import           Data.Time.Clock
+import           Data.Vector.V3
 import           HEphem.BSParser
 import           HEphem.Data
 import           Test.HUnit
+import           Test.QuickCheck
 import           Text.ParserCombinators.ReadP
+import Control.Monad
 
 (@=~?) :: (Show a, AEq a) => a -> a -> Assertion
 (@=~?) expected actual = expected =~ actual @? assertionMsg
@@ -36,3 +40,25 @@ northskypole = parseStar pole
 
 tzero :: UTCTime
 tzero = UTCTime (fromGregorian 2015 10 19) 0
+
+flatNorth :: HorPos
+flatNorth = HorPos (Degrees 0) (Degrees 0)
+
+zenithNorthEast :: HorPos
+zenithNorthEast = HorPos (Degrees 45) (Degrees 90)
+
+zenithNorth :: HorPos
+zenithNorth = HorPos (Degrees 0) (Degrees 90)
+
+flatEast :: HorPos
+flatEast = HorPos (Degrees 90) (Degrees 0)
+
+north :: HorPos
+north = HorPos (Degrees 0) (Degrees 45)
+
+northEast :: HorPos
+northEast = HorPos (Degrees 45) (Degrees 45)
+
+instance Arbitrary Vector3 where
+  arbitrary = liftM3 Vector3 nonZero nonZero nonZero
+    where nonZero = suchThat arbitrary (/= 0)
