@@ -82,6 +82,7 @@ spec = describe "HEphem" $
 
       it "is right inverse of equatorialToHorizontal" $ property
         prop_eqToHorAfterHorToEq;
+
     describe "findNear" $
       it "finds a skyobject on its own coords" $ property
         prop_FindNear

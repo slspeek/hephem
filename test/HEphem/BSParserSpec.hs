@@ -20,6 +20,9 @@ spec = describe "BrightStar parser" $ do
     length (filter (\x -> bSpectralType x == " ") brightstarlist) @?= 0
 
   it "matches values for mirfak" $ do
+    bFlamsteed mirfak @?= Just 33;
+    bBayer mirfak @?= "alpha";
+    bConst mirfak @?= "Per";
     bHRNo mirfak @?= 1017
     bMag mirfak @=~? 1.79
     fromJust (bUminB mirfak) @=~? 0.37

@@ -1,6 +1,5 @@
 module HEphem.UISpec where
 
-import           Control.Monad
 import           Data.Angle
 import           Data.Maybe
 import           Data.Vector.Class

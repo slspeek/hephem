@@ -159,12 +159,15 @@ pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y
 screenCoordAt:: Screen -> GeoLoc -> UTCTime ->SkyObject-> Maybe(Float,Float)
 screenCoordAt scr geo t so = screenCoord scr (equatorialToHorizontal geo t (equatorial so))
 
-visibleObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
-visibleObjects w t = mapMaybe f $ filter (\x -> magnitude x < w^.wMinMag) (w^.wObjects)
+onScreenObjects:: World -> UTCTime -> [(SkyObject, (Float,Float))]
+onScreenObjects w t = mapMaybe f $ visibleObjects w
   where
     f so = do
       c <- screenCoordAt (w^.wScreen) (w^.wGeo) t so
       return (so, c)
+
+visibleObjects:: World -> [SkyObject]
+visibleObjects w = filter (\x -> magnitude x < w^.wMinMag) (w^.wObjects)
 
 pictureHighlightedObject ::World ->  SkyObject -> Picture
 pictureHighlightedObject w s = case mc of Just (x,y) -> pict x y
@@ -179,7 +182,7 @@ pictureHighlightedObject w s = case mc of Just (x,y) -> pict x y
 
 pictureWorld :: World -> Picture
 pictureWorld w =
-  let stars = Pictures $ map pictureSkyObject (visibleObjects w (w^.wCurrentTime));
+  let stars = Pictures $ map pictureSkyObject (onScreenObjects w (w^.wCurrentTime));
       highlight = maybe Blank (pictureHighlightedObject w) (w ^. wHighlightedSkyObject)
   in Pictures [stars, pictureDashboard w, highlight]
 
@@ -194,7 +197,7 @@ dmod :: Deg -> Int -> Deg
 dmod (Degrees d) i = Degrees (d `mod'` fromIntegral i)
 
 findSkyObject:: World -> (Float,Float) -> Maybe SkyObject
-findSkyObject w p = findNear (w^.wObjects) eq 2
+findSkyObject w p = findNear (visibleObjects w) eq 0.01
   where
     hor = screenCoordToHorPos (w^.wScreen) p
     eq = horizontalToEquatorial (w^.wGeo) (w^.wCurrentTime) hor

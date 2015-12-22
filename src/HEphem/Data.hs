@@ -38,7 +38,9 @@ data GeoLoc = GeoLoc { _gLatitude,_gLongitude :: Deg }
 makeLenses ''GeoLoc
 
 data BrightStar = BrightStar
-          { bName         :: String
+          { bFlamsteed::Maybe Int
+          , bBayer::String
+          , bConst::String
           , bHRNo         :: Int
           , bRA           :: Deg
           , bDec          :: Deg
@@ -69,7 +71,7 @@ instance Eq SkyObject where
   _      ==  _     = False
 
 equatorial:: SkyObject -> EqPos
-equatorial (Star (BrightStar _ _ r d _ _ _ _ _)) = EqPos r d
+equatorial (Star (BrightStar  _ _ _ _ r d _ _ _ _ _)) = EqPos r d
 equatorial (NGC (NGCObject _ _ _ _ _ r d _ )) = EqPos r d
 
 magnitude:: SkyObject -> Float
@@ -77,7 +79,12 @@ magnitude (Star a) = bMag a
 magnitude (NGC  a) = nMag a
 
 description :: SkyObject -> String
-description (Star(BrightStar n hr _ _ _ m _ _ _)) = printf "%s HR# %v Mag %.1f" n hr m
+description (Star(BrightStar f b c hr _ _ _ m _ _ _)) =
+   case f of Nothing -> if b == "" then if c == "" then printf "HR# %v Mag %.1f" hr m
+                                                   else printf "%s HR# %v Mag %.1f" c hr m
+                                   else printf "%s %s HR# %v Mag %.1f" b c hr m
+
+             Just fl -> printf "%d %s %s HR# %v Mag %.1f" fl b c hr m
 description (NGC (NGCObject i _ _ t _ _ _ m )) = printf "%s Type %s Mag %.1f" i t m
 
 class AEq a where

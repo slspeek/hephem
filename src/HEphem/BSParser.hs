@@ -25,7 +25,9 @@ brightstarlist =
 
 starReadP :: ReadP BrightStar
 starReadP = do
-  name <- readName
+  f <- readFlamsteed
+  b <- readBayer
+  c <- readConst
   _ <- space
   hr <- readHRNo
   _ <- space
@@ -44,7 +46,9 @@ starReadP = do
   spec <- readSpectralType
 
   return BrightStar
-      { bName = name
+      { bFlamsteed = f
+      , bBayer = b
+      , bConst = c
       , bHRNo = hr
       , bRA = ra
       , bDec = d
@@ -58,14 +62,29 @@ starReadP = do
   where
     space = char ' '
 
+trim:: String -> String
+trim s = reverse . dropWhile (==' ') . reverse $ dropWhile (==' ') s
+
 getn :: Int -> ReadP String
 getn n = count n get
 
-readName :: ReadP String
-readName = do
-  _ <- getn 6
-  getn 13
+readFlamsteed :: ReadP (Maybe Int)
+readFlamsteed = do
+  s <- getn 4
+  let f = trim s
+  if f == ""
+    then return Nothing
+    else return . Just $ read s
 
+readConst :: ReadP String
+readConst = do
+  s <- getn 3
+  return $ trim s
+
+readBayer :: ReadP String
+readBayer = do
+  s <- getn 12
+  return $ trim s
 
 readHRNo :: ReadP Int
 readHRNo = do
