@@ -62,3 +62,16 @@ northEast = HorPos (Degrees 45) (Degrees 45)
 instance Arbitrary Vector3 where
   arbitrary = liftM3 Vector3 nonZero nonZero nonZero
     where nonZero = suchThat arbitrary (/= 0)
+
+m13 :: NGCObject
+m13 =
+  NGCObject
+    { nID  = "1234"
+    , nPGC = "567"
+    , nMessier = "M-13"
+    , nType = "GC"
+    , nClass = ""
+    , nRA = 0
+    , nDec = 0
+    , nMag = 5.2
+     }

@@ -38,19 +38,19 @@ data GeoLoc = GeoLoc { _gLatitude,_gLongitude :: Deg }
 makeLenses ''GeoLoc
 
 data BrightStar = BrightStar
-          { bFlamsteed::Maybe Int
-          , bBayer::String
-          , bConst::String
-          , bHRNo         :: Int
-          , bRA           :: Deg
-          , bDec          :: Deg
-          , bNotes        :: String
-          , bMag     :: Float
-          , bUminB        :: Maybe Float
-          , bBminV        :: Float
-          , bSpectralType :: String
-          }
-          deriving (Show,Eq)
+    { bFlamsteed::Maybe Int
+    , bBayer::String
+    , bConst::String
+    , bHRNo         :: Int
+    , bRA           :: Deg
+    , bDec          :: Deg
+    , bNotes        :: String
+    , bMag     :: Float
+    , bUminB        :: Maybe Float
+    , bBminV        :: Float
+    , bSpectralType :: String
+    }
+    deriving (Show,Eq)
 
 data NGCObject = NGCObject
     { nID :: String
@@ -112,9 +112,6 @@ instance AEq Vector3 where
 
 instance AEq Float where
   x =~ y = abs (x - y) < (1.0e-4 :: Float)
-
-instance (AEq a) => AEq (Degrees a) where
-  (Degrees x) =~ (Degrees y) = x =~ y
 
 instance (AEq a) => AEq (Radians a) where
   (Radians x) =~ (Radians y) = x =~ y

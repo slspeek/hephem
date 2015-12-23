@@ -7,6 +7,7 @@ hpc markup  --exclude="Main" \
             --exclude="HEphem.TestUtil" \
             --exclude="HEphem.HEphemSpec" \
             --exclude="HEphem.UISpec" \
+            --exclude="HEphem.DataSpec" \
             --exclude="HEphem.ParserUtilSpec" \
             --exclude="HEphem.BSParserSpec" \
             --exclude="HEphem.NGCParserSpec" \

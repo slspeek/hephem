@@ -1,6 +1,5 @@
 module HEphem.HEphemSpec where
 
-import           Data.Angle
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock

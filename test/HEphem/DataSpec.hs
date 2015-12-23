@@ -1,15 +1,10 @@
 module HEphem.DataSpec where
 
-import           Control.Monad
 import           Data.Angle
-import           Data.Maybe
 import           Data.Vector.Class
 import           Data.Vector.V3
-import           GHC.Float
 import           HEphem.Data
-import           HEphem.HEphem
 import           HEphem.TestUtil
-import           HEphem.UI
 import           Test.Hspec
 import           Test.Hspec.Contrib.HUnit (fromHUnitTest)
 import           Test.HUnit
@@ -63,3 +58,20 @@ spec = describe "Data module" $ do
 
     it "Polair after cartesian is identity" $
       property prop_Polair_Cartesian
+
+  describe "description" $ do
+
+    it "shows full Flamsteed/Bayer designation" $
+      description (Star mirfak)  `shouldBe` "33 alpha Per HR# 1017 Mag 1.8"
+
+    it "hides empty Flamsteed" $
+      description (Star mirfak {bFlamsteed = Nothing}) `shouldBe` "alpha Per HR# 1017 Mag 1.8"
+
+    it "hides empty Bayer" $
+      description (Star mirfak {bFlamsteed = Nothing, bBayer = ""}) `shouldBe` "Per HR# 1017 Mag 1.8"
+
+    it "hides empty constellation" $
+      description (Star mirfak {bFlamsteed = Nothing, bBayer = "", bConst = ""}) `shouldBe` "HR# 1017 Mag 1.8"
+
+    it "show ngc no type and magintude" $
+      description (NGC m13) `shouldBe` "1234 Type GC Mag 5.2"
