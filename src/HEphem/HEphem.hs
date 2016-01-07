@@ -11,6 +11,7 @@ import qualified Data.Map           as Map
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
+import           Data.Time.Format
 import           Data.Vector.Class
 import           HEphem.BSParser
 import           HEphem.Data
@@ -26,6 +27,9 @@ fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
 
 allSkyObjects :: [SkyObject]
 allSkyObjects = map Star brightstarlist ++ map NGC ngcObjectList
+
+brightSkyObjects :: Float -> [SkyObject]
+brightSkyObjects minMag = filter (\s -> magnitude s < minMag) allSkyObjects
 
 siderealtime :: UTCTime -> Deg
 siderealtime utc = Degrees $ 15 * sidtimeDecimalHours
@@ -88,31 +92,46 @@ findNear ss eq d = listToMaybe [ s | (sd, s) <- [closest], sd < d]
 
 data Rectangle = Rectangle Deg Deg Deg Deg
 
-visibleIn :: GeoLoc -> Rectangle -> IO [(SkyObject, HorPos)]
-visibleIn geo (Rectangle minAz maxAz minAl maxAl) =
-  do
-    t <- getCurrentTime
-    let f so = equatorialToHorizontal geo t (equatorial so)
-    return $ filter p (zip allSkyObjects (map f allSkyObjects))
+visibleInNow :: GeoLoc -> Float -> Rectangle -> IO [(SkyObject, HorPos)]
+visibleInNow geo minMag r =
+   do
+     t <- getCurrentTime
+     return $ visibleIn geo minMag r t
 
+
+visibleIn :: GeoLoc -> Float -> Rectangle -> UTCTime -> [(SkyObject, HorPos)]
+visibleIn geo minMag (Rectangle minAz maxAz minAl maxAl) t =
+    let f so = equatorialToHorizontal geo t (equatorial so);
+        sos = brightSkyObjects minMag
+    in filter p (zip sos (map f sos))
   where
+    -- TODO: consider minAz > maxAz
     p (_, HorPos a h) = (minAz <= a) &&
                         (maxAz >= a) &&
                         (minAl <= h) &&
                         (maxAl >= h)
 
-pretty :: (SkyObject, HorPos) -> String
-pretty (b, HorPos a h) =  show (magnitude b) ++
+tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Int -> [(UTCTime, SkyObject, HorPos)]
+tour g m r t _ = map (\(x, y) -> (t, x, y)) $ visibleIn g m r t
+
+viewTourNow :: GeoLoc -> Float -> Rectangle -> Int -> IO ()
+viewTourNow g m r d =
+  do
+    t <- getCurrentTime
+    mapM_ (putStrLn . pretty) $ tour g m r t d
+
+pretty :: (UTCTime, SkyObject, HorPos) -> String
+pretty (t, b, HorPos a h) =  formatTime defaultTimeLocale "%X" t ++ " " ++ description b ++
                          " Azi: " ++
                          show d ++
-                         "*" ++
+                         "\x00B0" ++
                          show m ++
                          "\"" ++
                          show s ++
                          "'" ++
                          " Alt: " ++
                          show d' ++
-                         "*" ++
+                         "\x00B0" ++
                          show m' ++
                          "\"" ++
                          show s' ++
