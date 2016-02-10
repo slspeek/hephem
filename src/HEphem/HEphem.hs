@@ -6,11 +6,13 @@
 module HEphem.HEphem where
 
 import           Data.Angle
-import           Data.Fixed         (mod')
-import qualified Data.Map           as Map
+import           Data.Fixed            (mod')
+import           Data.List
+import qualified Data.Map              as Map
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
+import           Data.Time.Clock.POSIX
 import           Data.Time.Format
 import           Data.Vector.Class
 import           HEphem.BSParser
@@ -25,11 +27,24 @@ fracDays :: UTCTime -> Double
 fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
                                                                    (toRational (utctDayTime u)) / 86400)
 
+
+ngcSkyObjects :: [SkyObject]
+ngcSkyObjects = map NGC ngcObjectList
+
+brightStarObjects :: [SkyObject]
+brightStarObjects = map Star brightstarlist
+
 allSkyObjects :: [SkyObject]
-allSkyObjects = map Star brightstarlist ++ map NGC ngcObjectList
+allSkyObjects = ngcSkyObjects ++ brightStarObjects
 
 brightSkyObjects :: Float -> [SkyObject]
-brightSkyObjects minMag = filter (\s -> magnitude s < minMag) allSkyObjects
+brightSkyObjects minMag = brightFilter minMag allSkyObjects
+
+brightNGCObjects :: Float -> [SkyObject]
+brightNGCObjects minMag = brightFilter minMag ngcSkyObjects
+
+brightFilter :: Float -> [SkyObject] -> [SkyObject]
+brightFilter m = filter (\s -> magnitude s < m)
 
 siderealtime :: UTCTime -> Deg
 siderealtime utc = Degrees $ 15 * sidtimeDecimalHours
@@ -100,25 +115,31 @@ visibleInNow geo minMag r =
 
 
 visibleIn :: GeoLoc -> Float -> Rectangle -> UTCTime -> [(SkyObject, HorPos)]
-visibleIn geo minMag (Rectangle minAz maxAz minAl maxAl) t =
+visibleIn geo minMag r t =
     let f so = equatorialToHorizontal geo t (equatorial so);
         sos = brightSkyObjects minMag
-    in filter p (zip sos (map f sos))
-  where
-    -- TODO: consider minAz > maxAz
-    p (_, HorPos a h) = (minAz <= a) &&
-                        (maxAz >= a) &&
-                        (minAl <= h) &&
-                        (maxAl >= h)
+    in filter (\(_, h) -> viewingRestriction r h) (zip sos (map f sos))
+
+
+viewingRestriction :: Rectangle -> HorPos -> Bool
+viewingRestriction (Rectangle minAz maxAz minAl maxAl) (HorPos a h) =
+  let azimuthRes = if minAz > maxAz
+      then
+        ((minAz <= a) && (a <= 360))
+        || ((0 <= a) && (a <= maxAz))
+      else
+        (minAz <= a) &&
+        (maxAz >= a);   altitudeRes = (minAl <= h) &&  (maxAl >= h);
+         in azimuthRes && altitudeRes
 
 tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Int -> [(UTCTime, SkyObject, HorPos)]
-tour g m r t _ = map (\(x, y) -> (t, x, y)) $ visibleIn g m r t
+tour g m r t _ = map (\(desc, pos) -> (t, desc, pos)) $ visibleIn g m r t
 
-viewTourNow :: GeoLoc -> Float -> Rectangle -> Int -> IO ()
-viewTourNow g m r d =
+viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Integer -> IO ()
+viewTourNow g m r d n =
   do
     t <- getCurrentTime
-    mapM_ (putStrLn . pretty) $ tour g m r t d
+    mapM_ (putStrLn . pretty) $ tour2 g m r t d n
 
 pretty :: (UTCTime, SkyObject, HorPos) -> String
 pretty (t, b, HorPos a h) =  formatTime defaultTimeLocale "%X" t ++ " " ++ description b ++
@@ -139,3 +160,38 @@ pretty (t, b, HorPos a h) =  formatTime defaultTimeLocale "%X" t ++ " " ++ descr
   where
     (d, m, s) = toMinutesSeconds a
     (d', m', s') = toMinutesSeconds h
+
+-- for every obj calculate the position for an interval from time t for d seconds and a frame every n seconds.
+-- get the best position (TODO mark it as absolute or time induced maximum)
+-- sort the set by time and altitude
+tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Integer -> [(UTCTime, SkyObject, HorPos)]
+tour2 g m r t d n = sortBy comp $ mapMaybe (bestPosition g r t d n) objects
+    where
+      objects = brightNGCObjects m
+      -- ascending on time
+      comp (y, _, _ ) (x, _, _)
+       | x < y = GT
+       | y > x = LT
+       | otherwise = EQ
+
+
+
+bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos)
+bestPosition geo r t d n so = listToMaybe res
+  where
+    f t' = (t', so, equatorialToHorizontal geo t' (equatorial so));
+    pos = map f (utctimeInterval t d n)
+    -- descending on altitude
+    comp (_, _, HorPos _ x) (_, _, HorPos _ y)
+     | x < y = GT
+     | y > x = LT
+     | otherwise = EQ
+    res = sortBy comp $ filter (\(_,_, h) -> viewingRestriction r h) pos
+
+
+timeInterval :: Integer -> Integer -> Integer -> [Integer]
+timeInterval t d n = if d >= 0 then t : timeInterval (t + n) (d - n) n
+                               else []
+
+utctimeInterval :: UTCTime -> Integer -> Integer -> [UTCTime]
+utctimeInterval t d n = map (posixSecondsToUTCTime . fromInteger) (timeInterval ((round . utcTimeToPOSIXSeconds) t) d n)

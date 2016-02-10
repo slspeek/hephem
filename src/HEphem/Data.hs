@@ -85,7 +85,9 @@ description (Star(BrightStar f b c hr _ _ _ m _ _ _)) =
                                    else printf "%s %s HR# %v Mag %.1f" b c hr m
 
              Just fl -> printf "%d %s %s HR# %v Mag %.1f" fl b c hr m
-description (NGC (NGCObject i _ _ t _ _ _ m )) = printf "%s Type %s Mag %.1f" i t m
+description (NGC (NGCObject i _ me t _ _ _ m )) =
+  if me == "" then printf "%s Type %s Mag %.1f" i t m
+               else printf "%s %s Type %s Mag %.1f" me i t m
 
 class AEq a where
   (=~) :: a -> a -> Bool

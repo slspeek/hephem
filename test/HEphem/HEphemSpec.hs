@@ -85,3 +85,7 @@ spec = describe "HEphem" $
     describe "findNear" $
       it "finds a skyobject on its own coords" $ property
         prop_FindNear
+
+    describe "timeInterval" $
+      it "gives [0, 10, 20] for t = 0, d = 20, n = 10" $
+        timeInterval 0 20 10 `shouldBe` [0, 10, 20]

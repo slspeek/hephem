@@ -74,4 +74,4 @@ spec = describe "Data module" $ do
       description (Star mirfak {bFlamsteed = Nothing, bBayer = "", bConst = ""}) `shouldBe` "HR# 1017 Mag 1.8"
 
     it "show ngc no type and magintude" $
-      description (NGC m13) `shouldBe` "1234 Type GC Mag 5.2"
+      description (NGC m13) `shouldBe` "M-13 1234 Type GC Mag 5.2"
