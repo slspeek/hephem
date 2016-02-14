@@ -14,11 +14,13 @@ import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import           Data.Time.Format
+import           Data.Time.LocalTime
 import           Data.Vector.Class
 import           HEphem.BSParser
 import           HEphem.Data
 import           HEphem.NGCParser
 import           HEphem.ParserUtil
+import           Text.Printf
 
 geoAms :: GeoLoc
 geoAms = GeoLoc (fromDMS 52 21 0) (fromDMS 4 51 59)
@@ -38,19 +40,19 @@ allSkyObjects :: [SkyObject]
 allSkyObjects = ngcSkyObjects ++ brightStarObjects
 
 brightSkyObjects :: Float -> [SkyObject]
-brightSkyObjects minMag = brightFilter minMag allSkyObjects
+brightSkyObjects = brightFilter allSkyObjects
 
 brightNGCObjects :: Float -> [SkyObject]
-brightNGCObjects minMag = brightFilter minMag ngcSkyObjects
+brightNGCObjects = brightFilter ngcSkyObjects
 
-brightFilter :: Float -> [SkyObject] -> [SkyObject]
-brightFilter m = filter (\s -> magnitude s < m)
+brightFilter :: [SkyObject] -> Float -> [SkyObject]
+brightFilter ss m = filter (\s -> magnitude s < m) ss
 
 siderealtime :: UTCTime -> Deg
-siderealtime utc = Degrees $ 15 * sidtimeDecimalHours
+siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
   where
     d
-    {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays utc -
+    {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays ut -
                                                                                    fromIntegral
                                                                                      time20000101 -
                                                                                    0.5
@@ -64,9 +66,9 @@ currentLocalSiderealtime :: GeoLoc -> IO Deg
 currentLocalSiderealtime l = localSiderealtime l <$> getCurrentTime
 
 localSiderealtime :: GeoLoc -> UTCTime -> Deg
-localSiderealtime (GeoLoc _ long) utc = Degrees $ lst `mod'` 360
+localSiderealtime (GeoLoc _ long) ut = Degrees $ lst `mod'` 360
   where
-    (Degrees lst) = siderealtime utc + long
+    (Degrees lst) = siderealtime ut + long
 
 
 toHorPosCoord :: Deg -> GeoLoc -> EqPos -> HorPos
@@ -74,14 +76,14 @@ toHorPosCoord lst (GeoLoc fi _) (EqPos ra d) = HorPos az al
   where
     lha = lst - ra
     al = arcsine $ sine d * sine fi + cosine d * cosine fi * cosine lha
-    azy = -sine lha * cosine d / cosine al
+    azy = - sine lha * cosine d / cosine al
     azx = (sine d - sine fi * sine al) / (cosine fi * cosine al)
     az = degrees $ solveAngle azx azy
 
 equatorialToHorizontal :: GeoLoc -> UTCTime -> EqPos -> HorPos
-equatorialToHorizontal loc utc = toHorPosCoord lst loc
+equatorialToHorizontal loc ut = toHorPosCoord lst loc
   where
-    lst = localSiderealtime loc utc
+    lst = localSiderealtime loc ut
 
 toEqPosCoord :: Deg -> GeoLoc -> HorPos -> EqPos
 toEqPosCoord  lst (GeoLoc fi _) (HorPos az al) = EqPos ra d
@@ -94,9 +96,9 @@ toEqPosCoord  lst (GeoLoc fi _) (HorPos az al) = EqPos ra d
     ra = if ra' < 0 then ra' + 360 else ra'
 
 horizontalToEquatorial :: GeoLoc -> UTCTime -> HorPos -> EqPos
-horizontalToEquatorial  loc utc = toEqPosCoord lst loc
+horizontalToEquatorial  loc ut = toEqPosCoord lst loc
   where
-    lst = localSiderealtime loc utc
+    lst = localSiderealtime loc ut
 
 findNear :: [SkyObject] -> EqPos -> Double -> Maybe SkyObject
 findNear ss eq d = listToMaybe [ s | (sd, s) <- [closest], sd < d]
@@ -139,28 +141,21 @@ viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Integer -> IO ()
 viewTourNow g m r d n =
   do
     t <- getCurrentTime
-    mapM_ (putStrLn . pretty) $ tour2 g m r t d n
+    lz <- getCurrentTimeZone
+    mapM_ (putStrLn . pretty lz) $ tour2 g m r t d n
 
-pretty :: (UTCTime, SkyObject, HorPos) -> String
-pretty (t, b, HorPos a h) =  formatTime defaultTimeLocale "%X" t ++ " " ++ description b ++
-                         " Azi: " ++
-                         show d ++
-                         "\x00B0" ++
-                         show m ++
-                         "\"" ++
-                         show s ++
-                         "'" ++
-                         " Alt: " ++
-                         show d' ++
-                         "\x00B0" ++
-                         show m' ++
-                         "\"" ++
-                         show s' ++
-                         "'"
+printDeg :: Deg -> String
+printDeg deg = printf "%d\x00B0 %d\"%d'" d m s
   where
-    (d, m, s) = toMinutesSeconds a
-    (d', m', s') = toMinutesSeconds h
+    (d, m, s) = toMinutesSeconds deg
 
+pretty :: TimeZone -> (UTCTime, SkyObject, HorPos) -> String
+pretty lz (t, so, HorPos a h) =
+  printf "%s  %s\tAzi: %s\tAlt: %s" tf (description so) (printDeg a) (printDeg h)
+  where
+    tf = formatTime defaultTimeLocale "%X" lt
+    lt = utcToLocalTime lz t
+    
 -- for every obj calculate the position for an interval from time t for d seconds and a frame every n seconds.
 -- get the best position (TODO mark it as absolute or time induced maximum)
 -- sort the set by time and altitude
