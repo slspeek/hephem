@@ -5,6 +5,7 @@
 -- | http://star-www.st-and.ac.uk/~fv/webnotes/chapter7.htm
 module HEphem.HEphem where
 
+import           Control.Arrow
 import           Data.Angle
 import           Data.Fixed            (mod')
 import           Data.List
@@ -49,15 +50,39 @@ brightFilter :: [SkyObject] -> Float -> [SkyObject]
 brightFilter ss m = filter (\s -> magnitude s < m) ss
 
 siderealtime :: UTCTime -> Deg
-siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
-  where
-    d
-    {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays ut -
-                                                                                   fromIntegral
-                                                                                     time20000101 -
-                                                                                   0.5
-    time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
-    sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
+siderealtime ut =
+ Degrees $ 15 * (siderealConv (fracDays ut) `mod'` 24)
+
+-- siderealtime :: UTCTime -> Deg
+-- siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
+--   where
+--     d
+--     {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays ut -
+--                                                                                    fromIntegral
+--                                                                                      time20000101 -
+--                                                                                    0.5
+--     time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
+--     sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
+
+
+siderealConv :: Double -> Double
+siderealConv ut =
+  c0 + c1 * (ut - c2)
+    where
+      c0 = 18.697374558
+      c1 = 24.06570982441908
+      c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
+
+siderealConvInv :: Double -> Double
+siderealConvInv x =
+  (x - c0 + c2  * c1)/ c1
+    where
+      c0 = 18.697374558
+      c1 = 24.06570982441908
+      c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
+
+timeFromSidereal :: UTCTime -> UTCTime -> Deg -> [UTCTime]
+timeFromSidereal = undefined
 
 currentSiderealtime :: IO Deg
 currentSiderealtime = siderealtime <$> getCurrentTime
@@ -70,6 +95,10 @@ localSiderealtime (GeoLoc _ long) ut = Degrees $ lst `mod'` 360
   where
     (Degrees lst) = siderealtime ut + long
 
+-- Give location, a begin date and and date, a local siderealtime and
+-- we will give all points in time in between with given local siderealtime time
+localSiderealtimeToUtcTime :: GeoLoc -> UTCTime -> UTCTime -> Deg -> [UTCTime]
+localSiderealtimeToUtcTime geo start end lst = undefined
 
 toHorPosCoord :: Deg -> GeoLoc -> EqPos -> HorPos
 toHorPosCoord lst (GeoLoc fi z) (EqPos ra d) = HorPos az al
@@ -229,20 +258,19 @@ solveTrigonom a b c = if d >= 0 then result else []
     d = 4 * a * a - 4 * (c - b) * (b + c)
     result = map ((2 *) . arctangent . (\x -> x/(2 * c  - 2 * b))) [-2 * a + sqrt d , -2 * a - sqrt d ]
 
---faulty
-reachesAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
-reachesAzimuth (GeoLoc fi _)(EqPos ra dec) az = map (+ ra) $
-  solveTrigonom
-   (- cosine az * cosine fi * cosine dec / sine az)
-    (- cosine dec * cosine fi)
-     (sine dec - sine fi * sine dec * sine fi)
-
 heightForAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
 heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
   filter (<=90) $ solveTrigonom (- sine fi) (- cosine fi * cosine az) (sine dec)
 
---faulty
-reachesAzimuthAboveHorizon :: GeoLoc -> EqPos -> Deg -> [(Deg, Deg)]
-reachesAzimuthAboveHorizon geo eq az = filter (\(_, h) -> h >= 0) $ zip hSols (map (\lst -> altitude lst geo eq) hSols)
+siderealFromPosition :: GeoLoc -> EqPos -> Deg ->  [(Deg, Deg)]
+siderealFromPosition (GeoLoc fi z)(EqPos ra dec) az = result
   where
-    hSols = reachesAzimuth geo eq az
+    hs = heightForAzimuth (GeoLoc fi z)(EqPos ra dec) az
+    result = zip (map f hs) hs
+    f h = g . degrees $ solveAngle
+     ((sine h - sine dec * sine fi) / cosine dec * cosine fi)
+      (- sine az * cosine h / cosine dec)
+    g x = let s = x + ra in if s >= 360 then s - 360 else s
+
+siderealFromPosition' :: GeoLoc -> EqPos -> Deg ->  [(String, Deg)]
+siderealFromPosition' geo eq az = map (Control.Arrow.first (\x -> show $ toMinutesSeconds (x*(1/15)))) $ siderealFromPosition geo eq az

@@ -61,6 +61,9 @@ prop_FindNear = and [ equatorial s == (equatorial . fromJust) (findNear visibles
   where
     visibles = [s | s<-allSkyObjects, magnitude s < 4]
 
+prop_siderealConv :: Double -> Bool
+prop_siderealConv d = siderealConv ( siderealConvInv d )=~ d
+
 spec :: SpecWith ()
 spec = describe "HEphem" $
   describe "siderealtime" $ do
@@ -89,3 +92,7 @@ spec = describe "HEphem" $
     describe "timeInterval" $
       it "gives [0, 10, 20] for t = 0, d = 20, n = 10" $
         timeInterval 0 20 10 `shouldBe` [0, 10, 20]
+
+    describe "siderealConv{,Inv}" $
+      it "are inverses" $ property
+        prop_siderealConv
