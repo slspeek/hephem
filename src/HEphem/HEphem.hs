@@ -72,13 +72,19 @@ localSiderealtime (GeoLoc _ long) ut = Degrees $ lst `mod'` 360
 
 
 toHorPosCoord :: Deg -> GeoLoc -> EqPos -> HorPos
-toHorPosCoord lst (GeoLoc fi _) (EqPos ra d) = HorPos az al
+toHorPosCoord lst (GeoLoc fi z) (EqPos ra d) = HorPos az al
   where
     lha = lst - ra
-    al = arcsine $ sine d * sine fi + cosine d * cosine fi * cosine lha
+    al = altitude lst (GeoLoc fi z) (EqPos ra d)
     azy = - sine lha * cosine d / cosine al
     azx = (sine d - sine fi * sine al) / (cosine fi * cosine al)
     az = degrees $ solveAngle azx azy
+
+altitude :: Deg -> GeoLoc -> EqPos -> Deg
+altitude lst (GeoLoc fi _) (EqPos ra d) = al
+  where
+    lha = lst - ra
+    al = arcsine $ sine d * sine fi + cosine d * cosine fi * cosine lha
 
 equatorialToHorizontal :: GeoLoc -> UTCTime -> EqPos -> HorPos
 equatorialToHorizontal loc ut = toHorPosCoord lst loc
@@ -155,7 +161,7 @@ pretty lz (t, so, HorPos a h) =
   where
     tf = formatTime defaultTimeLocale "%X" lt
     lt = utcToLocalTime lz t
-    
+
 -- for every obj calculate the position for an interval from time t for d seconds and a frame every n seconds.
 -- get the best position (TODO mark it as absolute or time induced maximum)
 -- sort the set by time and altitude
@@ -190,3 +196,53 @@ timeInterval t d n = if d >= 0 then t : timeInterval (t + n) (d - n) n
 
 utctimeInterval :: UTCTime -> Integer -> Integer -> [UTCTime]
 utctimeInterval t d n = map (posixSecondsToUTCTime . fromInteger) (timeInterval ((round . utcTimeToPOSIXSeconds) t) d n)
+
+-- Want to solve t given an azimuth value or altitude value.
+-- (i)   t = H + α
+-- (ii)  sin(a) = sin(δ) sin(φ) + cos(δ) cos(φ) cos(H)
+-- (iii) sin(A) = - sin(H) cos(δ) / cos(a) ==> cos(a) = - sin(H) cos(δ) /  sin(A)
+-- (iv)  cos(A) = { sin(δ) - sin(φ) sin(a) } / cos(φ) cos(a)
+--
+-- (v)   sin(δ) = sin(a)sin(φ) + cos(a) cos(φ) cos(A)
+-- (vi)  sin(H) = - sin(A) cos(a) / cos(δ)
+-- (vii) cos(H) = { sin(a) - sin(δ) sin(φ)} / cos(δ) cos(φ)
+--
+
+-- Suppose azimuth is given
+
+-- [a] and [H] are unknown and may not exist.
+-- lets use (ii) to eliminate sin(a) and (iii) to eliminate cos(a) in (iv):
+
+--  cos(A) = { sin(δ) - sin(φ) {sin(δ) sin(φ) + cos(δ) cos(φ) cos(H)} } / cos(φ) { - sin(H) cos(δ) /  sin(A)}
+-- cos(A) cos(φ) { - sin(H) cos(δ) /  sin(A)} =  sin(δ) - sin(φ) {sin(δ) sin(φ) + cos(δ) cos(φ) cos(H)}
+-- sin(H) {- cos(A) cos(φ)  cos(δ) / sin(A)} = {sin(δ) - sin(φ) sin(δ) sin(φ)} + cos(H) {cos(δ) cos(φ)}
+-- sin(H) {- cos(A) cos(φ)  cos(δ) / sin(A)} + cos(H) { - cos(δ) cos(φ)} + - {sin(δ) - sin(φ) sin(δ) sin(φ)} = 0
+
+-- to get [a] we use (v) to get
+-- sin(δ) = sin(a)sin(φ) + cos(a) cos(φ) cos(A) <==>
+-- sin(a) (-sin(φ) ) + cos(a) ( -cos(φ) cos(A)) + sin(δ) = 0
+
+-- Given A sin x + B cos x + C = 0 returns values for x
+solveTrigonom :: Double -> Double -> Double -> [Deg]
+solveTrigonom a b c = if d >= 0 then result else []
+  where
+    d = 4 * a * a - 4 * (c - b) * (b + c)
+    result = map ((2 *) . arctangent . (\x -> x/(2 * c  - 2 * b))) [-2 * a + sqrt d , -2 * a - sqrt d ]
+
+--faulty
+reachesAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
+reachesAzimuth (GeoLoc fi _)(EqPos ra dec) az = map (+ ra) $
+  solveTrigonom
+   (- cosine az * cosine fi * cosine dec / sine az)
+    (- cosine dec * cosine fi)
+     (sine dec - sine fi * sine dec * sine fi)
+
+heightForAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
+heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
+  filter (<=90) $ solveTrigonom (- sine fi) (- cosine fi * cosine az) (sine dec)
+
+--faulty
+reachesAzimuthAboveHorizon :: GeoLoc -> EqPos -> Deg -> [(Deg, Deg)]
+reachesAzimuthAboveHorizon geo eq az = filter (\(_, h) -> h >= 0) $ zip hSols (map (\lst -> altitude lst geo eq) hSols)
+  where
+    hSols = reachesAzimuth geo eq az
