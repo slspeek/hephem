@@ -49,40 +49,46 @@ brightNGCObjects = brightFilter ngcSkyObjects
 brightFilter :: [SkyObject] -> Float -> [SkyObject]
 brightFilter ss m = filter (\s -> magnitude s < m) ss
 
-siderealtime :: UTCTime -> Deg
-siderealtime ut =
- Degrees $ 15 * (siderealConv (fracDays ut) `mod'` 24)
-
 -- siderealtime :: UTCTime -> Deg
--- siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
---   where
---     d
---     {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays ut -
---                                                                                    fromIntegral
---                                                                                      time20000101 -
---                                                                                    0.5
---     time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
---     sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
+-- siderealtime ut =
+--  Degrees $ 15 * (siderealConv (fracDays ut) `mod'` 24)
+
+siderealtime :: UTCTime -> Deg
+siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
+  where
+    d
+    {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays ut -
+                                                                                   fromIntegral
+                                                                                     time20000101 -
+                                                                                   0.5
+    time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
+    sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
 
 
-siderealConv :: Double -> Double
-siderealConv ut =
-  c0 + c1 * (ut - c2)
+-- siderealConv :: Double -> Double
+-- siderealConv ut =
+--   c0 + c1 * (ut - c2)
+--     where
+--       c0 = 18.697374558
+--       c1 = 24.06570982441908
+--       c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
+--
+-- siderealConvInv :: Double -> Double
+-- siderealConvInv x =
+--   (x - c0 + c2  * c1)/ c1
+--     where
+--       c0 = 18.697374558
+--       c1 = 24.06570982441908
+--       c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
+
+timeFromSidereal :: UTCTime -> Deg -> UTCTime
+timeFromSidereal fromTime sTime =
+  addUTCTime (realToFrac dt) fromTime
     where
-      c0 = 18.697374558
-      c1 = 24.06570982441908
-      c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
-
-siderealConvInv :: Double -> Double
-siderealConvInv x =
-  (x - c0 + c2  * c1)/ c1
-    where
-      c0 = 18.697374558
-      c1 = 24.06570982441908
-      c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
-
-timeFromSidereal :: UTCTime -> UTCTime -> Deg -> [UTCTime]
-timeFromSidereal = undefined
+      st0 = siderealtime fromTime
+      d' = sTime - st0
+      d  = if d' < 0 then d'+360 else d'
+      (Degrees dt) = 24 * 10 * (24/24.06570982441908) * d
 
 currentSiderealtime :: IO Deg
 currentSiderealtime = siderealtime <$> getCurrentTime
@@ -95,10 +101,11 @@ localSiderealtime (GeoLoc _ long) ut = Degrees $ lst `mod'` 360
   where
     (Degrees lst) = siderealtime ut + long
 
--- Give location, a begin date and and date, a local siderealtime and
--- we will give all points in time in between with given local siderealtime time
-localSiderealtimeToUtcTime :: GeoLoc -> UTCTime -> UTCTime -> Deg -> [UTCTime]
-localSiderealtimeToUtcTime geo start end lst = undefined
+-- Give location, a date a local siderealtime and
+-- we will give the next point in time with given local siderealtime time
+localSiderealtimeToUtcTime :: GeoLoc -> UTCTime -> Deg -> UTCTime
+localSiderealtimeToUtcTime (GeoLoc _ long) ut lst =
+  timeFromSidereal ut (lst - long)
 
 toHorPosCoord :: Deg -> GeoLoc -> EqPos -> HorPos
 toHorPosCoord lst (GeoLoc fi z) (EqPos ra d) = HorPos az al
@@ -218,7 +225,6 @@ bestPosition geo r t d n so = listToMaybe res
      | otherwise = EQ
     res = sortBy comp $ filter (\(_,_, h) -> viewingRestriction r h) pos
 
-
 timeInterval :: Integer -> Integer -> Integer -> [Integer]
 timeInterval t d n = if d >= 0 then t : timeInterval (t + n) (d - n) n
                                else []
@@ -236,21 +242,6 @@ utctimeInterval t d n = map (posixSecondsToUTCTime . fromInteger) (timeInterval 
 -- (vi)  sin(H) = - sin(A) cos(a) / cos(δ)
 -- (vii) cos(H) = { sin(a) - sin(δ) sin(φ)} / cos(δ) cos(φ)
 --
-
--- Suppose azimuth is given
-
--- [a] and [H] are unknown and may not exist.
--- lets use (ii) to eliminate sin(a) and (iii) to eliminate cos(a) in (iv):
-
---  cos(A) = { sin(δ) - sin(φ) {sin(δ) sin(φ) + cos(δ) cos(φ) cos(H)} } / cos(φ) { - sin(H) cos(δ) /  sin(A)}
--- cos(A) cos(φ) { - sin(H) cos(δ) /  sin(A)} =  sin(δ) - sin(φ) {sin(δ) sin(φ) + cos(δ) cos(φ) cos(H)}
--- sin(H) {- cos(A) cos(φ)  cos(δ) / sin(A)} = {sin(δ) - sin(φ) sin(δ) sin(φ)} + cos(H) {cos(δ) cos(φ)}
--- sin(H) {- cos(A) cos(φ)  cos(δ) / sin(A)} + cos(H) { - cos(δ) cos(φ)} + - {sin(δ) - sin(φ) sin(δ) sin(φ)} = 0
-
--- to get [a] we use (v) to get
--- sin(δ) = sin(a)sin(φ) + cos(a) cos(φ) cos(A) <==>
--- sin(a) (-sin(φ) ) + cos(a) ( -cos(φ) cos(A)) + sin(δ) = 0
-
 -- Given A sin x + B cos x + C = 0 returns values for x
 solveTrigonom :: Double -> Double -> Double -> [Deg]
 solveTrigonom a b c = if d >= 0 then result else []
@@ -272,5 +263,9 @@ siderealFromPosition (GeoLoc fi z)(EqPos ra dec) az = result
       (- sine az * cosine h / cosine dec)
     g x = let s = x + ra in if s >= 360 then s - 360 else s
 
-siderealFromPosition' :: GeoLoc -> EqPos -> Deg ->  [(String, Deg)]
-siderealFromPosition' geo eq az = map (Control.Arrow.first (\x -> show $ toMinutesSeconds (x*(1/15)))) $ siderealFromPosition geo eq az
+siderealFromPosition' :: GeoLoc -> EqPos -> Deg ->  IO [(UTCTime, Deg)]
+siderealFromPosition' geo eq az =
+  do
+    t <- getCurrentTime
+    return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ siderealFromPosition geo eq az
+-- siderealFromPosition' geo eq az = map (Control.Arrow.first (\x -> show $ toMinutesSeconds (x*(1/15)))) $ siderealFromPosition geo eq az
