@@ -35,6 +35,13 @@ makeLenses ''HorPos
 data GeoLoc = GeoLoc { _gLatitude,_gLongitude :: Deg }
   deriving (Eq, Show)
 
+instance Arbitrary GeoLoc where
+  arbitrary = do
+    az <- suchThat arbitrary (\x -> x >= -90 && x <= 90)
+    al <- suchThat arbitrary (\x -> x >= -180 && x <= 180)
+    return $ GeoLoc (Degrees az) (Degrees al)
+
+
 makeLenses ''GeoLoc
 
 data BrightStar = BrightStar

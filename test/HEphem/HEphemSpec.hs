@@ -1,5 +1,7 @@
+{-# LANGUAGE TypeSynonymInstances #-}
 module HEphem.HEphemSpec where
 
+import           Data.Angle
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
@@ -61,6 +63,16 @@ prop_FindNear = and [ equatorial s == (equatorial . fromJust) (findNear visibles
   where
     visibles = [s | s<-allSkyObjects, magnitude s < 4]
 
+
+prop_localSiderealtimeToUtcTime :: Double -> Double -> GeoLoc -> Property
+prop_localSiderealtimeToUtcTime t lst geo =
+  (lst < 360) && (lst > 0)
+  ==>
+  ((localSiderealtime geo (localSiderealtimeToUtcTime geo testDate (Degrees lst)) - Degrees lst) <= 1e-2)
+  where
+    testDate = UTCTime (fromGregorian 2001 1 1) (realToFrac t)
+
+
 spec :: SpecWith ()
 spec = describe "HEphem" $
   describe "siderealtime" $ do
@@ -89,3 +101,7 @@ spec = describe "HEphem" $
     describe "timeInterval" $
       it "gives [0, 10, 20] for t = 0, d = 20, n = 10" $
         timeInterval 0 20 10 `shouldBe` [0, 10, 20]
+
+    describe "localSiderealtimeToUtcTime" $
+      it "gives next moment with lst" $
+        property prop_localSiderealtimeToUtcTime
