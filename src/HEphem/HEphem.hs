@@ -30,7 +30,6 @@ fracDays :: UTCTime -> Double
 fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
                                                                    (toRational (utctDayTime u)) / 86400)
 
-
 ngcSkyObjects :: [SkyObject]
 ngcSkyObjects = map NGC ngcObjectList
 
@@ -49,10 +48,6 @@ brightNGCObjects = brightFilter ngcSkyObjects
 brightFilter :: [SkyObject] -> Float -> [SkyObject]
 brightFilter ss m = filter (\s -> magnitude s < m) ss
 
--- siderealtime :: UTCTime -> Deg
--- siderealtime ut =
---  Degrees $ 15 * (siderealConv (fracDays ut) `mod'` 24)
-
 siderealtime :: UTCTime -> Deg
 siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
   where
@@ -63,23 +58,6 @@ siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
                                                                                    0.5
     time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
     sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
-
-
--- siderealConv :: Double -> Double
--- siderealConv ut =
---   c0 + c1 * (ut - c2)
---     where
---       c0 = 18.697374558
---       c1 = 24.06570982441908
---       c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
---
--- siderealConvInv :: Double -> Double
--- siderealConvInv x =
---   (x - c0 + c2  * c1)/ c1
---     where
---       c0 = 18.697374558
---       c1 = 24.06570982441908
---       c2 =  fromIntegral (toModifiedJulianDay $ fromGregorian 2000 1 1) + 0.5
 
 timeFromSidereal :: UTCTime -> Deg -> UTCTime
 timeFromSidereal fromTime sTime =
@@ -253,19 +231,44 @@ heightForAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
 heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
   filter (<=90) $ solveTrigonom (- sine fi) (- cosine fi * cosine az) (sine dec)
 
-siderealFromPosition :: GeoLoc -> EqPos -> Deg ->  [(Deg, Deg)]
-siderealFromPosition (GeoLoc fi z)(EqPos ra dec) az = result
+azimuthForHeight :: GeoLoc -> EqPos -> Deg ->  [Deg]
+azimuthForHeight (GeoLoc fi _)(EqPos _ dec) a =
+  -- cos az = { sin(δ) - sin(φ) sin(a) } / cos(φ) cos(a)
+  let x = (sine dec - sine fi * sine a) / (cosine fi * cosine a);
+    in if abs x <= 1
+        then let t = arccosine x in [t, 360- t]
+      else
+        []
+
+localSiderealtimeFromPos :: GeoLoc -> EqPos -> HorPos -> Deg
+localSiderealtimeFromPos (GeoLoc fi _)(EqPos ra dec) (HorPos az a) = f
   where
-    hs = heightForAzimuth (GeoLoc fi z)(EqPos ra dec) az
-    result = zip (map f hs) hs
-    f h = g . degrees $ solveAngle
-     ((sine h - sine dec * sine fi) / cosine dec * cosine fi)
-      (- sine az * cosine h / cosine dec)
+    f = g . degrees $ solveAngle ((sine a - sine dec * sine fi) / cosine dec * cosine fi) (- sine az * cosine a / cosine dec)
     g x = let s = x + ra in if s >= 360 then s - 360 else s
 
-siderealFromPosition' :: GeoLoc -> EqPos -> Deg ->  IO [(UTCTime, Deg)]
-siderealFromPosition' geo eq az =
+
+intersectAzimuth :: GeoLoc -> EqPos -> Deg ->  [(Deg, HorPos)]
+intersectAzimuth g eq az =
+  do
+    a <- heightForAzimuth g eq az
+    let ps = HorPos az a
+    return (localSiderealtimeFromPos g eq ps, ps)
+
+intersectHeight :: GeoLoc -> EqPos -> Deg ->  [(Deg, HorPos)]
+intersectHeight g eq a =
+  do
+    az <- azimuthForHeight g eq a
+    let ps = HorPos az a
+    return (localSiderealtimeFromPos g eq ps, ps)
+
+testDisplayAzi :: GeoLoc -> EqPos -> Deg ->  IO [(UTCTime, HorPos)]
+testDisplayAzi geo eq az =
   do
     t <- getCurrentTime
-    return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ siderealFromPosition geo eq az
+    return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ intersectAzimuth geo eq az
 -- siderealFromPosition' geo eq az = map (Control.Arrow.first (\x -> show $ toMinutesSeconds (x*(1/15)))) $ siderealFromPosition geo eq az
+testDisplayHeight :: GeoLoc -> EqPos -> Deg ->  IO [(UTCTime, HorPos)]
+testDisplayHeight geo eq a =
+  do
+    t <- getCurrentTime
+    return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ intersectHeight geo eq a
