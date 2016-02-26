@@ -6,6 +6,7 @@
 module HEphem.HEphem where
 
 import           Control.Arrow
+import           Control.Lens          hiding (element)
 import           Data.Angle
 import           Data.Fixed            (mod')
 import           Data.List
@@ -17,6 +18,7 @@ import           Data.Time.Clock.POSIX
 import           Data.Time.Format
 import           Data.Time.LocalTime
 import           Data.Vector.Class
+import           GHC.Exts
 import           HEphem.BSParser
 import           HEphem.Data
 import           HEphem.NGCParser
@@ -127,14 +129,11 @@ findNear ss eq d = listToMaybe [ s | (sd, s) <- [closest], sd < d]
     closest = Map.findMin $ Map.fromList distances
     dis (EqPos x y) (EqPos x' y') = vmag $ cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)
 
-data Rectangle = Rectangle Deg Deg Deg Deg
-
 visibleInNow :: GeoLoc -> Float -> Rectangle -> IO [(SkyObject, HorPos)]
 visibleInNow geo minMag r =
    do
      t <- getCurrentTime
      return $ visibleIn geo minMag r t
-
 
 visibleIn :: GeoLoc -> Float -> Rectangle -> UTCTime -> [(SkyObject, HorPos)]
 visibleIn geo minMag r t =
@@ -142,16 +141,15 @@ visibleIn geo minMag r t =
         sos = brightSkyObjects minMag
     in filter (\(_, h) -> viewingRestriction r h) (zip sos (map f sos))
 
-
 viewingRestriction :: Rectangle -> HorPos -> Bool
-viewingRestriction (Rectangle minAz maxAz minAl maxAl) (HorPos a h) =
-  let azimuthRes = if minAz > maxAz
+viewingRestriction r (HorPos a h) =
+  let azimuthRes = if r^.minAz > r^.maxAz
       then
-        ((minAz <= a) && (a <= 360))
-        || ((0 <= a) && (a <= maxAz))
+        ((r^.minAz <= a) && (a <= 360))
+        || ((0 <= a) && (a <= r^.maxAz))
       else
-        (minAz <= a) &&
-        (maxAz >= a);   altitudeRes = (minAl <= h) &&  (maxAl >= h);
+        (r^.minAz <= a) &&
+        (r^.maxAz >= a);   altitudeRes = (r^.minAl <= h) &&  (r^.maxAl >= h);
          in azimuthRes && altitudeRes
 
 tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Int -> [(UTCTime, SkyObject, HorPos)]
@@ -231,6 +229,8 @@ heightForAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
 heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
   filter (<=90) $ solveTrigonom (- sine fi) (- cosine fi * cosine az) (sine dec)
 
+
+--Faulty
 azimuthForHeight :: GeoLoc -> EqPos -> Deg ->  [Deg]
 azimuthForHeight (GeoLoc fi _)(EqPos _ dec) a =
   -- cos az = { sin(δ) - sin(φ) sin(a) } / cos(φ) cos(a)
@@ -254,6 +254,7 @@ intersectAzimuth g eq az =
     let ps = HorPos az a
     return (localSiderealtimeFromPos g eq ps, ps)
 
+--Faulty
 intersectHeight :: GeoLoc -> EqPos -> Deg ->  [(Deg, HorPos)]
 intersectHeight g eq a =
   do
@@ -272,3 +273,46 @@ testDisplayHeight geo eq a =
   do
     t <- getCurrentTime
     return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ intersectHeight geo eq a
+
+--Faulty
+crossingRect :: GeoLoc -> Rectangle -> EqPos -> [((Deg, HorPos), Bool)]
+crossingRect geo r eq =  sortWith (fst . fst) $  hminis' ++  hmaxis' ++ azminis' ++ azmaxis'
+  where
+    f = filter (viewingRestriction r . snd)
+    hminis = f $ intersectHeight geo eq (r^.minAl)
+    hminis' = zip hminis (map (ascending . snd) hminis)
+
+    hmaxis = f $ intersectHeight geo eq (r^.maxAl)
+    hmaxis' = zip hmaxis (map (not . ascending . snd) hmaxis)
+
+    azminis = f $ intersectAzimuth geo eq (r^.minAz)
+    azminis' = zip azminis  (map (leftToRight geo. snd) azminis)
+
+    azmaxis = f $ intersectAzimuth geo eq  (r^.maxAz)
+    azmaxis' = zip azmaxis   (map (not . leftToRight geo . snd) azmaxis)
+
+--Faulty
+crossingRect' :: GeoLoc -> Rectangle -> EqPos -> [((Deg, HorPos), (HorPos, Bool))]
+crossingRect' geo r eq =  zip rs (map (\(s, _) -> laterIn s) rs)
+  where
+    f = filter (viewingRestriction r . snd)
+    hminis = f $ intersectHeight geo eq (r^.minAl)
+    hmaxis = f $ intersectHeight geo eq (r^.maxAl)
+    azminis = f $ intersectAzimuth geo eq (r^.minAz)
+    azmaxis = f $ intersectAzimuth geo eq  (r^.maxAz)
+    rs = sortWith fst $  hminis ++  hmaxis ++ azminis ++ azmaxis
+    laterIn s = (toHorPosCoord  (s + 0.1) geo eq,  viewingRestriction r (toHorPosCoord  s geo eq))
+
+ascending :: HorPos -> Bool
+ascending (HorPos az _) | az >=0 && az <=180 = True
+                          | otherwise         = False
+
+leftToRight :: GeoLoc -> HorPos -> Bool
+leftToRight (GeoLoc fi _) (HorPos az al) | al >= abs fi && fi < 0 = True
+                                         | al < abs fi && fi < 0 = False
+                                         -- Northern hemisphere
+                                         | az >= 90 && az <= 270 && al >= abs fi && fi >= 0 = False
+                                         | az >= 90 && az <= 270 = True
+                                         | az > 270 && az < 90 && al >= abs fi && fi >= 0 = False
+                                         | al < abs fi && fi >= 0 = True
+                                         | otherwise = undefined

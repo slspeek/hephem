@@ -96,6 +96,15 @@ description (NGC (NGCObject i _ me t _ _ _ m )) =
   if me == "" then printf "%s Type %s Mag %.1f" i t m
                else printf "%s %s Type %s Mag %.1f" me i t m
 
+
+data Rectangle = Rectangle{
+    _minAz::Deg,
+    _maxAz::Deg,
+    _minAl::Deg,
+    _maxAl::Deg}
+
+makeLenses ''Rectangle
+
 class AEq a where
   (=~) :: a -> a -> Bool
 
