@@ -187,8 +187,6 @@ tour2 g m r t d n = sortBy comp $ mapMaybe (bestPosition g r t d n) objects
        | y > x = LT
        | otherwise = EQ
 
-
-
 bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos)
 bestPosition geo r t d n so = listToMaybe res
   where
@@ -225,12 +223,13 @@ solveTrigonom a b c = if d >= 0 then result else []
     d = 4 * a * a - 4 * (c - b) * (b + c)
     result = map ((2 *) . arctangent . (\x -> x/(2 * c  - 2 * b))) [-2 * a + sqrt d , -2 * a - sqrt d ]
 
+--Faulty
 heightForAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
 heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
-  filter (<=90) $ solveTrigonom (- sine fi) (- cosine fi * cosine az) (sine dec)
+  -- sin(δ) = sin(a)sin(φ) + cos(a) cos(φ) cos(A) =>
+  -- sin(a) sin(φ) + cos(a) cos(φ) cos(A) - sin(δ) = 0
+  filter (<=90) $ solveTrigonom ( sine fi) (cosine fi * cosine az) (- sine dec)
 
-
---Faulty
 azimuthForHeight :: GeoLoc -> EqPos -> Deg ->  [Deg]
 azimuthForHeight (GeoLoc fi _)(EqPos _ dec) a =
   -- cos az = { sin(δ) - sin(φ) sin(a) } / cos(φ) cos(a)
@@ -242,11 +241,18 @@ azimuthForHeight (GeoLoc fi _)(EqPos _ dec) a =
 
 localSiderealtimeFromPos :: GeoLoc -> EqPos -> HorPos -> Deg
 localSiderealtimeFromPos (GeoLoc fi _)(EqPos ra dec) (HorPos az a) = f
+-- (i)   t = H + α
+--
+-- (vi)  sin(H) = - sin(A) cos(a) / cos(δ)
+-- (vii) cos(H) = { sin(a) - sin(δ) sin(φ)} / cos(δ) cos(φ)
   where
-    f = g . degrees $ solveAngle ((sine a - sine dec * sine fi) / cosine dec * cosine fi) (- sine az * cosine a / cosine dec)
+    f = g . degrees $
+     solveAngle
+     ((sine a - sine dec * sine fi) / (cosine dec * cosine fi))
+      (- sine az * cosine a / cosine dec)
     g x = let s = x + ra in if s >= 360 then s - 360 else s
 
-
+--Faulty
 intersectAzimuth :: GeoLoc -> EqPos -> Deg ->  [(Deg, HorPos)]
 intersectAzimuth g eq az =
   do
@@ -254,7 +260,6 @@ intersectAzimuth g eq az =
     let ps = HorPos az a
     return (localSiderealtimeFromPos g eq ps, ps)
 
---Faulty
 intersectHeight :: GeoLoc -> EqPos -> Deg ->  [(Deg, HorPos)]
 intersectHeight g eq a =
   do
@@ -267,7 +272,7 @@ testDisplayAzi geo eq az =
   do
     t <- getCurrentTime
     return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ intersectAzimuth geo eq az
--- siderealFromPosition' geo eq az = map (Control.Arrow.first (\x -> show $ toMinutesSeconds (x*(1/15)))) $ siderealFromPosition geo eq az
+
 testDisplayHeight :: GeoLoc -> EqPos -> Deg ->  IO [(UTCTime, HorPos)]
 testDisplayHeight geo eq a =
   do
@@ -307,6 +312,7 @@ ascending :: HorPos -> Bool
 ascending (HorPos az _) | az >=0 && az <=180 = True
                           | otherwise         = False
 
+-- Faulty nonsense
 leftToRight :: GeoLoc -> HorPos -> Bool
 leftToRight (GeoLoc fi _) (HorPos az al) | al >= abs fi && fi < 0 = True
                                          | al < abs fi && fi < 0 = False

@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 module HEphem.HEphemSpec where
 
+import           Control.Lens
 import           Data.Angle
 import           Data.Maybe
 import           Data.Time.Calendar
@@ -63,15 +64,61 @@ prop_FindNear = and [ equatorial s == (equatorial . fromJust) (findNear visibles
   where
     visibles = [s | s<-allSkyObjects, magnitude s < 4]
 
+prop_SolveTrigonom :: Double -> Double -> Double -> Property
+prop_SolveTrigonom a b c =
+  a * a - (c - b) * (b + c) > 0
+  ==>
+    f s1 =~ 0 && f s2 =~ 0
+  where
+    ss = solveTrigonom a b c
+    s1 = head ss
+    s2 = head $ tail ss
+    f x = a * sine x + b * cosine x + c
 
 prop_localSiderealtimeToUtcTime :: Double -> Double -> GeoLoc -> Property
 prop_localSiderealtimeToUtcTime t lst geo =
-  (lst < 360) && (lst > 0)
+  (lst <= 360) && (lst >= 0) && (t > 0) && (t < 1e4)
   ==>
-  ((localSiderealtime geo (localSiderealtimeToUtcTime geo testDate (Degrees lst)) - Degrees lst) <= 1e-2)
+  ((localSiderealtime geo (localSiderealtimeToUtcTime geo testDate (Degrees lst)) - Degrees lst) <= 1e-3)
   where
     testDate = UTCTime (fromGregorian 2001 1 1) (realToFrac t)
 
+prop_heightForAzimuth :: Double -> EqPos -> GeoLoc -> Property
+prop_heightForAzimuth lst eq geo =
+  (lst < 360) && (lst >= 0)
+  ==>
+  (hp^.hAltitude) =~ head (heightForAzimuth geo eq (hp^.hAzimuth))
+  where
+    hp = toHorPosCoord (Degrees lst) geo eq
+
+prop_azimuthForHeight :: Double -> EqPos -> GeoLoc -> Property
+prop_azimuthForHeight lst eq geo =
+  (lst < 360) && (lst >= 0)
+  ==>
+  (hp^.hAzimuth) =~ head (azimuthForHeight geo eq (hp^.hAltitude))
+                              || (hp^.hAzimuth) =~ head (tail (azimuthForHeight geo eq (hp^.hAltitude)))
+  where
+    hp = toHorPosCoord (Degrees lst) geo eq
+
+prop_localSiderealtimeFromPos :: Double -> GeoLoc -> EqPos -> Property
+prop_localSiderealtimeFromPos lst geo eq =
+  (lst <= 360) && (lst > 0)
+  ==>
+  localSiderealtimeFromPos geo eq hp =~ Degrees  lst
+  where
+    hp = toHorPosCoord (Degrees lst) geo eq
+
+prop_intersectHeight ::  GeoLoc -> EqPos -> Double -> Property
+prop_intersectHeight geo eq al =
+  (al >= 0) && (al <= 90)
+  ==>
+  all (\(lst, hp) -> hp =~ toHorPosCoord lst geo eq) (intersectHeight geo eq (Degrees al))
+
+prop_intersectAzimuth ::  GeoLoc -> EqPos -> Double -> Property
+prop_intersectAzimuth geo eq az =
+  (az >= 0) && (az <= 360)
+  ==>
+  all (\(lst, hp) -> hp =~ toHorPosCoord lst geo eq) (intersectAzimuth geo eq (Degrees az))
 
 spec :: SpecWith ()
 spec = describe "HEphem" $
@@ -105,3 +152,27 @@ spec = describe "HEphem" $
     describe "localSiderealtimeToUtcTime" $
       it "gives next moment with lst" $
         property prop_localSiderealtimeToUtcTime
+
+    describe "heightForAzimuth" $
+      it "predict a given horpos" $
+        property prop_heightForAzimuth
+
+    describe "azimuthForHeight" $
+      it "predict a given horpos" $
+        property prop_azimuthForHeight
+
+    describe "solveTrigonom" $
+      it "calculates solutions" $
+        property prop_SolveTrigonom
+
+    describe "localSiderealtimeFromPos" $
+      it "at the time returned the star is at that position" $
+        property prop_localSiderealtimeFromPos
+
+    describe "intersectHeight" $
+      it "gives lst and pos inline with toHorPosCoord" $
+        property prop_intersectHeight
+
+    describe "intersectAzimuth" $
+      it "gives lst and pos inline with toHorPosCoord" $
+        property prop_intersectAzimuth

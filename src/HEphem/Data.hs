@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, TemplateHaskell #-}
+{-# LANGUAGE ExistentialQuantification, TemplateHaskell, TypeSynonymInstances, FlexibleInstances #-}
 
 module HEphem.Data where
 
@@ -109,12 +109,15 @@ class AEq a where
   (=~) :: a -> a -> Bool
 
 instance AEq Double where
-  x =~ y = abs (x - y) < (1.0e-8 :: Double)
+  x =~ y = abs (x - y) < (1.0e-4 :: Double)
+
+instance AEq Deg where
+  x =~ y = abs (x - y) < (1.0e-4 :: Deg)
 
 instance AEq HorPos where
-  x =~ y = abs (_hAzimuth x - _hAzimuth y) < d && abs (_hAltitude x - _hAltitude y) < d
+  (HorPos x y) =~ (HorPos x' y') = vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
     where
-      d = 0.1 :: Deg
+      d = 1e-1 :: Double
 
 instance AEq EqPos where
   x =~ y = abs (eRA x - eRA y) < d && abs (eDec x - eDec y) < d
