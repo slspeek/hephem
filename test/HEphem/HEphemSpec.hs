@@ -87,7 +87,9 @@ prop_heightForAzimuth :: Double -> EqPos -> GeoLoc -> Property
 prop_heightForAzimuth lst eq geo =
   (lst < 360) && (lst >= 0)
   ==>
-  (hp^.hAltitude) =~ head (heightForAzimuth geo eq (hp^.hAzimuth))
+    (hp^.hAltitude) =~ head (heightForAzimuth geo eq (hp^.hAzimuth))
+      ||
+       (hp^.hAltitude) =~ head ( tail (heightForAzimuth geo eq (hp^.hAzimuth)))
   where
     hp = toHorPosCoord (Degrees lst) geo eq
 

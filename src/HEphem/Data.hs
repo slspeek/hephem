@@ -117,7 +117,7 @@ instance AEq Deg where
 instance AEq HorPos where
   (HorPos x y) =~ (HorPos x' y') = vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
     where
-      d = 1e-1 :: Double
+      d = 1e-3 :: Double
 
 instance AEq EqPos where
   x =~ y = abs (eRA x - eRA y) < d && abs (eDec x - eDec y) < d

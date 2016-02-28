@@ -223,12 +223,21 @@ solveTrigonom a b c = if d >= 0 then result else []
     d = 4 * a * a - 4 * (c - b) * (b + c)
     result = map ((2 *) . arctangent . (\x -> x/(2 * c  - 2 * b))) [-2 * a + sqrt d , -2 * a - sqrt d ]
 
---Faulty
 heightForAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
 heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
   -- sin(δ) = sin(a)sin(φ) + cos(a) cos(φ) cos(A) =>
   -- sin(a) sin(φ) + cos(a) cos(φ) cos(A) - sin(δ) = 0
-  filter (<=90) $ solveTrigonom ( sine fi) (cosine fi * cosine az) (- sine dec)
+  filter (\x -> x <= 90 && x >= -90) $ solveTrigonom ( sine fi) (cosine fi * cosine az) (- sine dec)
+
+transitPos :: GeoLoc -> EqPos -> HorPos
+transitPos geo eq = let nh = maximum (heightForAzimuth geo eq 0);
+                           sh = maximum(heightForAzimuth geo eq 180);
+                           in if nh > sh then HorPos 0 nh else HorPos 180 sh
+
+lowestPos :: GeoLoc -> EqPos -> HorPos
+lowestPos geo eq = let nh = minimum (heightForAzimuth geo eq 0);
+                           sh = minimum(heightForAzimuth geo eq 180);
+                           in if nh < sh then HorPos 0 nh else HorPos 180 sh
 
 azimuthForHeight :: GeoLoc -> EqPos -> Deg ->  [Deg]
 azimuthForHeight (GeoLoc fi _)(EqPos _ dec) a =
@@ -252,7 +261,6 @@ localSiderealtimeFromPos (GeoLoc fi _)(EqPos ra dec) (HorPos az a) = f
       (- sine az * cosine a / cosine dec)
     g x = let s = x + ra in if s >= 360 then s - 360 else s
 
---Faulty
 intersectAzimuth :: GeoLoc -> EqPos -> Deg ->  [(Deg, HorPos)]
 intersectAzimuth g eq az =
   do
@@ -267,38 +275,8 @@ intersectHeight g eq a =
     let ps = HorPos az a
     return (localSiderealtimeFromPos g eq ps, ps)
 
-testDisplayAzi :: GeoLoc -> EqPos -> Deg ->  IO [(UTCTime, HorPos)]
-testDisplayAzi geo eq az =
-  do
-    t <- getCurrentTime
-    return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ intersectAzimuth geo eq az
-
-testDisplayHeight :: GeoLoc -> EqPos -> Deg ->  IO [(UTCTime, HorPos)]
-testDisplayHeight geo eq a =
-  do
-    t <- getCurrentTime
-    return $ map (Control.Arrow.first (localSiderealtimeToUtcTime geo t)) $ intersectHeight geo eq a
-
---Faulty
 crossingRect :: GeoLoc -> Rectangle -> EqPos -> [((Deg, HorPos), Bool)]
-crossingRect geo r eq =  sortWith (fst . fst) $  hminis' ++  hmaxis' ++ azminis' ++ azmaxis'
-  where
-    f = filter (viewingRestriction r . snd)
-    hminis = f $ intersectHeight geo eq (r^.minAl)
-    hminis' = zip hminis (map (ascending . snd) hminis)
-
-    hmaxis = f $ intersectHeight geo eq (r^.maxAl)
-    hmaxis' = zip hmaxis (map (not . ascending . snd) hmaxis)
-
-    azminis = f $ intersectAzimuth geo eq (r^.minAz)
-    azminis' = zip azminis  (map (leftToRight geo. snd) azminis)
-
-    azmaxis = f $ intersectAzimuth geo eq  (r^.maxAz)
-    azmaxis' = zip azmaxis   (map (not . leftToRight geo . snd) azmaxis)
-
---Faulty
-crossingRect' :: GeoLoc -> Rectangle -> EqPos -> [((Deg, HorPos), (HorPos, Bool))]
-crossingRect' geo r eq =  zip rs (map (\(s, _) -> laterIn s) rs)
+crossingRect geo r eq =  zip rs (map (\(s, _) -> laterIn s) rs)
   where
     f = filter (viewingRestriction r . snd)
     hminis = f $ intersectHeight geo eq (r^.minAl)
@@ -306,19 +284,27 @@ crossingRect' geo r eq =  zip rs (map (\(s, _) -> laterIn s) rs)
     azminis = f $ intersectAzimuth geo eq (r^.minAz)
     azmaxis = f $ intersectAzimuth geo eq  (r^.maxAz)
     rs = sortWith fst $  hminis ++  hmaxis ++ azminis ++ azmaxis
-    laterIn s = (toHorPosCoord  (s + 0.1) geo eq,  viewingRestriction r (toHorPosCoord  s geo eq))
+    testPos s = toHorPosCoord  (s + 0.001) geo eq
+    laterIn s = viewingRestriction r (testPos s)
 
-ascending :: HorPos -> Bool
-ascending (HorPos az _) | az >=0 && az <=180 = True
-                          | otherwise         = False
+helper :: [(a, Bool)] -> [(a, Bool)]
+helper l =
+   case l of [] -> []
+             h:xs -> if snd h then h:xs else xs ++ [h]
 
--- Faulty nonsense
-leftToRight :: GeoLoc -> HorPos -> Bool
-leftToRight (GeoLoc fi _) (HorPos az al) | al >= abs fi && fi < 0 = True
-                                         | al < abs fi && fi < 0 = False
-                                         -- Northern hemisphere
-                                         | az >= 90 && az <= 270 && al >= abs fi && fi >= 0 = False
-                                         | az >= 90 && az <= 270 = True
-                                         | az > 270 && az < 90 && al >= abs fi && fi >= 0 = False
-                                         | al < abs fi && fi >= 0 = True
-                                         | otherwise = undefined
+passages :: GeoLoc -> Rectangle -> EqPos -> [(((Deg, HorPos), (Deg, HorPos)), (Deg, (Deg, Deg)))]
+passages geo r eq = zip l $ map (minh &&& maxh &&& timeDelta) l
+  where
+    crss = crossingRect geo r eq
+    c = helper crss
+    l = zip (map fst $ filter snd c) (map fst $ filter (not . snd) c)
+    minh p = min (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
+    maxh p = max (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
+    timeDelta p = (/ 15)  (let t = fst (snd p) - fst (fst p)
+                      in if t < 0 then t + 360 else t)
+
+testDisplayCrossing ::  GeoLoc -> Rectangle -> EqPos -> IO ()
+testDisplayCrossing geo r eq =
+   do
+     t <- getCurrentTime
+     mapM_  print  $ passages geo r eq
