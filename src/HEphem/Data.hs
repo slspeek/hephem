@@ -12,6 +12,9 @@ import           Data.Vector.Class
 
 type Deg = Degrees Double
 
+undeg :: Deg -> Double
+undeg (Degrees s) = s
+
 data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)
 

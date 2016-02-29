@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 
 -- | http://star-www.st-and.ac.uk/~fv/webnotes/chapter7.htm
@@ -230,13 +231,13 @@ heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
   filter (\x -> x <= 90 && x >= -90) $ solveTrigonom ( sine fi) (cosine fi * cosine az) (- sine dec)
 
 transitPos :: GeoLoc -> EqPos -> HorPos
-transitPos geo eq = let nh = maximum (heightForAzimuth geo eq 0);
-                           sh = maximum(heightForAzimuth geo eq 180);
+transitPos geo eq = let nh = maximum (heightForAzimuth geo eq 0 ++ [-100]);
+                           sh = maximum(heightForAzimuth geo eq 180 ++ [-100]);
                            in if nh > sh then HorPos 0 nh else HorPos 180 sh
 
 lowestPos :: GeoLoc -> EqPos -> HorPos
-lowestPos geo eq = let nh = minimum (heightForAzimuth geo eq 0);
-                           sh = minimum(heightForAzimuth geo eq 180);
+lowestPos geo eq = let nh = minimum (heightForAzimuth geo eq 0 ++ [100]);
+                           sh = minimum(heightForAzimuth geo eq 180 ++ [100]);
                            in if nh < sh then HorPos 0 nh else HorPos 180 sh
 
 azimuthForHeight :: GeoLoc -> EqPos -> Deg ->  [Deg]
@@ -303,8 +304,60 @@ passages geo r eq = zip l $ map (minh &&& maxh &&& timeDelta) l
     timeDelta p = (/ 15)  (let t = fst (snd p) - fst (fst p)
                       in if t < 0 then t + 360 else t)
 
-testDisplayCrossing ::  GeoLoc -> Rectangle -> EqPos -> IO ()
-testDisplayCrossing geo r eq =
+testDisplayPassages ::  GeoLoc -> Rectangle -> EqPos -> IO ()
+testDisplayPassages geo r eq =
    do
      t <- getCurrentTime
      mapM_  print  $ passages geo r eq
+
+-- Want for any SkyObject, geo, viewing rectangle
+-- * passages if any
+-- * min height and max height
+-- * total amount of time the object is visible
+data Direction = DTop|DBottom|DLeft|DRight
+  deriving (Show, Eq)
+
+data ViewingReport =
+  ViewingReport{
+   _vPassages  :: [((Deg, HorPos, Direction), (Deg, HorPos, Direction))],
+   _vMinHeight :: Deg,
+   _vMaxHeight :: Deg
+} deriving Show
+
+makeLenses ''ViewingReport
+
+createViewingReport :: GeoLoc -> Rectangle -> EqPos -> Maybe ViewingReport
+createViewingReport geo r eq = if noAnswer then Nothing else
+                                          Just $ ViewingReport ps minh maxh
+  where
+    hminis = h minAl DBottom
+    hmaxis = h maxAl DTop
+    azminis = a minAz DLeft
+    azmaxis = a maxAz DRight
+
+    h l s = zip ( filter (viewingRestriction r . snd) $ intersectHeight geo eq  (r^.l)) (repeat s)
+    a l s = zip (filter (viewingRestriction r . snd) $ intersectAzimuth geo eq  (r^.l)) (repeat s)
+
+    rs' = sortWith (fst.fst) $  hminis ++ hmaxis ++ azminis ++ azmaxis
+    rs = map (\((x, y), z) -> (x, y, z)) rs'
+
+
+    minh =
+      let lp = lowestPos geo eq in
+        if viewingRestriction r lp
+          then lp ^. hAltitude
+          else minimum $ map (\(_,HorPos _ al,_) -> al) rs
+
+    maxh =
+      let tp = transitPos geo eq in
+        if viewingRestriction r tp
+          then tp ^. hAltitude
+          else maximum $ map (\(_,HorPos _ al,_) -> al) rs
+
+    trs =  helper $ zip rs (map (\(s,_,_) -> laterIn s) rs)
+    testPos s = toHorPosCoord  (s + 0.001) geo eq
+    laterIn s = viewingRestriction r (testPos s)
+
+    ps = zip (map fst $ filter snd trs) (map fst $ filter (not . snd) trs)
+
+    noAnswer = null ps && not (viewingRestriction r (lowestPos geo eq)) && not (viewingRestriction r (transitPos geo eq))
