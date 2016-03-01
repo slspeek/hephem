@@ -115,7 +115,7 @@ instance AEq Double where
   x =~ y = abs (x - y) < (1.0e-4 :: Double)
 
 instance AEq Deg where
-  x =~ y = abs (x - y) < (1.0e-4 :: Deg)
+  x =~ y = abs (x - y) < (1.0e-1 :: Deg)
 
 instance AEq HorPos where
   (HorPos x y) =~ (HorPos x' y') = vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d

@@ -178,3 +178,19 @@ spec = describe "HEphem" $
     describe "intersectAzimuth" $
       it "gives lst and pos inline with toHorPosCoord" $
         property prop_intersectAzimuth
+
+    describe "intersectInterval" $ do
+      it "should work for ordered intervals" $ do
+          intersectInterval (1,2) (3,4) `shouldBe` False;
+          intersectInterval (1,2) (1,4) `shouldBe` True;
+      it "should work for ordered intervals 2" $ do
+          intersectInterval (10,20) (0,12) `shouldBe` True;
+          intersectInterval (10,20) (15,30) `shouldBe` True
+      it "should work for left included in right" $
+          intersectInterval (160,175) (83,337) `shouldBe` True
+      it "should work for reverse ordered intervals" $
+        intersectInterval (350,20) (359,4) `shouldBe` True
+      it "should work for reverse ordered intervals 2" $
+        intersectInterval (350,20) (1,4) `shouldBe` True
+      it "should work for reverse ordered intervals 3" $
+        intersectInterval (10,20) (320,14) `shouldBe` True

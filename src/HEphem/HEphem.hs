@@ -10,7 +10,6 @@ import           Control.Arrow
 import           Control.Lens          hiding (element)
 import           Data.Angle
 import           Data.Fixed            (mod')
-import           Data.List
 import qualified Data.Map              as Map
 import           Data.Maybe
 import           Data.Time.Calendar
@@ -34,13 +33,13 @@ fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
                                                                    (toRational (utctDayTime u)) / 86400)
 
 ngcSkyObjects :: [SkyObject]
-ngcSkyObjects = map NGC ngcObjectList
+ngcSkyObjects = fmap NGC ngcObjectList
 
 brightStarObjects :: [SkyObject]
-brightStarObjects = map Star brightstarlist
+brightStarObjects = fmap Star brightstarlist
 
 allSkyObjects :: [SkyObject]
-allSkyObjects = ngcSkyObjects ++ brightStarObjects
+allSkyObjects = ngcSkyObjects `mappend` brightStarObjects
 
 brightSkyObjects :: Float -> [SkyObject]
 brightSkyObjects = brightFilter allSkyObjects
@@ -126,7 +125,7 @@ horizontalToEquatorial  loc ut = toEqPosCoord lst loc
 findNear :: [SkyObject] -> EqPos -> Double -> Maybe SkyObject
 findNear ss eq d = listToMaybe [ s | (sd, s) <- [closest], sd < d]
   where
-    distances = zip (map (dis eq . equatorial) ss) ss
+    distances = zip (fmap (dis eq . equatorial) ss) ss
     closest = Map.findMin $ Map.fromList distances
     dis (EqPos x y) (EqPos x' y') = vmag $ cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)
 
@@ -140,7 +139,7 @@ visibleIn :: GeoLoc -> Float -> Rectangle -> UTCTime -> [(SkyObject, HorPos)]
 visibleIn geo minMag r t =
     let f so = equatorialToHorizontal geo t (equatorial so);
         sos = brightSkyObjects minMag
-    in filter (\(_, h) -> viewingRestriction r h) (zip sos (map f sos))
+    in filter (\(_, h) -> viewingRestriction r h) (zip sos (fmap f sos))
 
 viewingRestriction :: Rectangle -> HorPos -> Bool
 viewingRestriction r (HorPos a h) =
@@ -154,14 +153,7 @@ viewingRestriction r (HorPos a h) =
          in azimuthRes && altitudeRes
 
 tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Int -> [(UTCTime, SkyObject, HorPos)]
-tour g m r t _ = map (\(desc, pos) -> (t, desc, pos)) $ visibleIn g m r t
-
-viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Integer -> IO ()
-viewTourNow g m r d n =
-  do
-    t <- getCurrentTime
-    lz <- getCurrentTimeZone
-    mapM_ (putStrLn . pretty lz) $ tour2 g m r t d n
+tour g m r t _ = (\(desc, pos) -> (t, desc, pos)) <$> visibleIn g m r t
 
 printDeg :: Deg -> String
 printDeg deg = printf "%d\x00B0 %d\"%d'" d m s
@@ -178,34 +170,15 @@ pretty lz (t, so, HorPos a h) =
 -- for every obj calculate the position for an interval from time t for d seconds and a frame every n seconds.
 -- get the best position (TODO mark it as absolute or time induced maximum)
 -- sort the set by time and altitude
-tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Integer -> [(UTCTime, SkyObject, HorPos)]
-tour2 g m r t d n = sortBy comp $ mapMaybe (bestPosition g r t d n) objects
-    where
-      objects = brightNGCObjects m
-      -- ascending on time
-      comp (y, _, _ ) (x, _, _)
-       | x < y = GT
-       | y > x = LT
-       | otherwise = EQ
 
-bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos)
-bestPosition geo r t d n so = listToMaybe res
-  where
-    f t' = (t', so, equatorialToHorizontal geo t' (equatorial so));
-    pos = map f (utctimeInterval t d n)
-    -- descending on altitude
-    comp (_, _, HorPos _ x) (_, _, HorPos _ y)
-     | x < y = GT
-     | y > x = LT
-     | otherwise = EQ
-    res = sortBy comp $ filter (\(_,_, h) -> viewingRestriction r h) pos
+
 
 timeInterval :: Integer -> Integer -> Integer -> [Integer]
 timeInterval t d n = if d >= 0 then t : timeInterval (t + n) (d - n) n
                                else []
 
 utctimeInterval :: UTCTime -> Integer -> Integer -> [UTCTime]
-utctimeInterval t d n = map (posixSecondsToUTCTime . fromInteger) (timeInterval ((round . utcTimeToPOSIXSeconds) t) d n)
+utctimeInterval t d n = fmap (posixSecondsToUTCTime . fromInteger) (timeInterval ((round . utcTimeToPOSIXSeconds) t) d n)
 
 -- Want to solve t given an azimuth value or altitude value.
 -- (i)   t = H + α
@@ -222,7 +195,7 @@ solveTrigonom :: Double -> Double -> Double -> [Deg]
 solveTrigonom a b c = if d >= 0 then result else []
   where
     d = 4 * a * a - 4 * (c - b) * (b + c)
-    result = map ((2 *) . arctangent . (\x -> x/(2 * c  - 2 * b))) [-2 * a + sqrt d , -2 * a - sqrt d ]
+    result = fmap ((2 *) . arctangent . (\x -> x/(2 * c  - 2 * b))) [-2 * a + sqrt d , -2 * a - sqrt d ]
 
 heightForAzimuth :: GeoLoc -> EqPos -> Deg ->  [Deg]
 heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
@@ -231,13 +204,13 @@ heightForAzimuth (GeoLoc fi _)(EqPos _ dec) az =
   filter (\x -> x <= 90 && x >= -90) $ solveTrigonom ( sine fi) (cosine fi * cosine az) (- sine dec)
 
 transitPos :: GeoLoc -> EqPos -> HorPos
-transitPos geo eq = let nh = maximum (heightForAzimuth geo eq 0 ++ [-100]);
-                           sh = maximum(heightForAzimuth geo eq 180 ++ [-100]);
+transitPos geo eq = let nh = maximum (heightForAzimuth geo eq 0 `mappend` [-100]);
+                           sh = maximum(heightForAzimuth geo eq 180 `mappend` [-100]);
                            in if nh > sh then HorPos 0 nh else HorPos 180 sh
 
 lowestPos :: GeoLoc -> EqPos -> HorPos
-lowestPos geo eq = let nh = minimum (heightForAzimuth geo eq 0 ++ [100]);
-                           sh = minimum(heightForAzimuth geo eq 180 ++ [100]);
+lowestPos geo eq = let nh = minimum (heightForAzimuth geo eq 0 `mappend` [100]);
+                           sh = minimum(heightForAzimuth geo eq 180 `mappend` [100]);
                            in if nh < sh then HorPos 0 nh else HorPos 180 sh
 
 azimuthForHeight :: GeoLoc -> EqPos -> Deg ->  [Deg]
@@ -277,43 +250,41 @@ intersectHeight g eq a =
     return (localSiderealtimeFromPos g eq ps, ps)
 
 crossingRect :: GeoLoc -> Rectangle -> EqPos -> [((Deg, HorPos), Bool)]
-crossingRect geo r eq =  zip rs (map (\(s, _) -> laterIn s) rs)
+crossingRect geo r eq =  zip rs (fmap (\(s, _) -> laterIn s) rs)
   where
     f = filter (viewingRestriction r . snd)
     hminis = f $ intersectHeight geo eq (r^.minAl)
     hmaxis = f $ intersectHeight geo eq (r^.maxAl)
     azminis = f $ intersectAzimuth geo eq (r^.minAz)
     azmaxis = f $ intersectAzimuth geo eq  (r^.maxAz)
-    rs = sortWith fst $  hminis ++  hmaxis ++ azminis ++ azmaxis
+    rs = sortWith fst $  concat [hminis, hmaxis, azminis, azmaxis]
     testPos s = toHorPosCoord  (s + 0.001) geo eq
     laterIn s = viewingRestriction r (testPos s)
 
 helper :: [(a, Bool)] -> [(a, Bool)]
 helper l =
    case l of [] -> []
-             h:xs -> if snd h then h:xs else xs ++ [h]
+             h:xs -> if snd h then h:xs else xs `mappend` [h]
 
 passages :: GeoLoc -> Rectangle -> EqPos -> [(((Deg, HorPos), (Deg, HorPos)), (Deg, (Deg, Deg)))]
-passages geo r eq = zip l $ map (minh &&& maxh &&& timeDelta) l
+passages geo r eq = zip l $ fmap (minh &&& maxh &&& timeDelta) l
   where
     crss = crossingRect geo r eq
     c = helper crss
-    l = zip (map fst $ filter snd c) (map fst $ filter (not . snd) c)
+    l = zip (fst <$> filter snd c) (fst <$> filter (not . snd) c)
     minh p = min (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
     maxh p = max (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
     timeDelta p = (/ 15)  (let t = fst (snd p) - fst (fst p)
                       in if t < 0 then t + 360 else t)
 
 testDisplayPassages ::  GeoLoc -> Rectangle -> EqPos -> IO ()
-testDisplayPassages geo r eq =
-   do
-     t <- getCurrentTime
-     mapM_  print  $ passages geo r eq
+testDisplayPassages geo r eq = mapM_  print  $ passages geo r eq
 
 -- Want for any SkyObject, geo, viewing rectangle
 -- * passages if any
 -- * min height and max height
 -- * total amount of time the object is visible
+
 data Direction = DTop|DBottom|DLeft|DRight
   deriving (Show, Eq)
 
@@ -338,26 +309,79 @@ createViewingReport geo r eq = if noAnswer then Nothing else
     h l s = zip ( filter (viewingRestriction r . snd) $ intersectHeight geo eq  (r^.l)) (repeat s)
     a l s = zip (filter (viewingRestriction r . snd) $ intersectAzimuth geo eq  (r^.l)) (repeat s)
 
-    rs' = sortWith (fst.fst) $  hminis ++ hmaxis ++ azminis ++ azmaxis
-    rs = map (\((x, y), z) -> (x, y, z)) rs'
+    rs' = sortWith (fst.fst) $  concat [hminis, hmaxis, azminis, azmaxis]
+    rs = fmap (\((x, y), z) -> (x, y, z)) rs'
 
 
     minh =
       let lp = lowestPos geo eq in
         if viewingRestriction r lp
           then lp ^. hAltitude
-          else minimum $ map (\(_,HorPos _ al,_) -> al) rs
+          else minimum $ fmap (\(_,HorPos _ al,_) -> al) rs
 
     maxh =
       let tp = transitPos geo eq in
         if viewingRestriction r tp
           then tp ^. hAltitude
-          else maximum $ map (\(_,HorPos _ al,_) -> al) rs
+          else maximum $ fmap (\(_,HorPos _ al,_) -> al) rs
 
-    trs =  helper $ zip rs (map (\(s,_,_) -> laterIn s) rs)
+    trs =  helper $ zip rs (fmap (\(s,_,_) -> laterIn s) rs)
     testPos s = toHorPosCoord  (s + 0.001) geo eq
     laterIn s = viewingRestriction r (testPos s)
 
-    ps = zip (map fst $ filter snd trs) (map fst $ filter (not . snd) trs)
+    ps = zip (fst <$> filter snd trs) (fst <$> filter (not . snd) trs)
 
     noAnswer = null ps && not (viewingRestriction r (lowestPos geo eq)) && not (viewingRestriction r (transitPos geo eq))
+
+intersectInterval :: (Deg,Deg) -> (Deg,Deg) -> Bool
+intersectInterval (t0,t1) (u0,u1) | t0 < t1 && u0 < u1 = (t0 < u1 && u1 < t1) || (t0 < u0 && u0 < t1) || (u0 < t0 && t0 < u1)
+                                                         || (u0 < t1 && t1 < u1)
+                                  | t0 > t1 && u0 < u1 =
+                                    intersectInterval (t0, 360) (u0, u1) ||
+                                      intersectInterval (0, t1) (u0, u1)
+                                  | t0 > t1 && u0 > u1 =
+                                    intersectInterval (t0, 360) (u0, 360) ||
+                                      intersectInterval (0, t1) (u0, 360) ||
+                                        intersectInterval (t0, 360) (0, u1) ||
+                                          intersectInterval (0, t1) (0, u1)
+                                  | t0 < t1 && u0 > u1 =
+                                    intersectInterval (t0, t1) (u0, 360) ||
+                                      intersectInterval (t0, t1) (0, u1)
+                                  | otherwise = False
+
+relevant:: GeoLoc -> Rectangle -> (Deg, Deg) -> EqPos -> Bool
+relevant geo r (t0, t1) eq =
+  case vr of Nothing -> False
+             Just rep -> null (rep^.vPassages) || any (\((x,_,_),(y,_,_)) -> intersectInterval (t0,t1) (x,y)) (rep^.vPassages)
+
+  -- union of ViewingReport without passages (circum polair) and
+  -- Exits passage such that eq is visible for some time, i. e.
+  -- the intervals have a non-empty intersection.
+  where
+    vr = createViewingReport geo r eq
+
+bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos)
+bestPosition geo r t d n so = if relevant geo r (lst0, lst1) (equatorial so)
+   then
+    listToMaybe res
+   else
+     Nothing
+  where
+    f t' = (t', so, equatorialToHorizontal geo t' (equatorial so));
+    pos = fmap f (utctimeInterval t d n)
+    -- descending on altitude
+    res = reverse . sortWith (\(_, _, HorPos _ x) -> x) $ filter (\(_,_, h) -> viewingRestriction r h) pos
+    lst0 = localSiderealtime geo t
+    lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)
+
+tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Integer -> [(UTCTime, SkyObject, HorPos)]
+tour2 g m r t d n = sortWith (\(s,_,_)->s) $ mapMaybe (bestPosition g r t d n) objects
+    where
+      objects = brightNGCObjects m
+
+viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Integer -> IO ()
+viewTourNow g m r d n =
+  do
+    t <- getCurrentTime
+    lz <- getCurrentTimeZone
+    mapM_ (putStrLn . pretty lz) $ tour2 g m r t d n

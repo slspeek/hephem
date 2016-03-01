@@ -134,7 +134,7 @@ pictureStar s (x, y) = Color white . Translate x y $ circleSolid (max 1 (6 - bMa
 pictureNGCObject:: NGCObject -> (Float,Float) -> Picture
 pictureNGCObject n (x, y) = Pictures
   [ Color blue . Translate x y $ circle (max 1 (6 - nMag n))
-  , Color blue . Translate (x + 10) (y - 10) $ Scale 0.1 0.1 $ text (nMessier n)
+  , Color blue . Translate (x + 10) (y - 10) . Scale 0.1 0.1 $ text (nMessier n)
   ]
 
 
@@ -145,7 +145,7 @@ fromDeg :: Deg -> Double
 fromDeg (Degrees x) = x
 
 pictureDashboard:: World -> Picture
-pictureDashboard w = Color red $ Translate (fromIntegral x + 10) (fromIntegral y + 8) $ Scale 0.1 0.1 $
+pictureDashboard w = Color red . Translate (fromIntegral x + 10) (fromIntegral y + 8) . Scale 0.1 0.1 .
   Text $ printf "Azimuth: %.2f  Altitude: %.2f  Distance: %.2f Time: %s Speed: %.2f  Minimal mag: %.0f"
                 (fromDeg (w^.wScreen.sDirection.hAzimuth))
                 (fromDeg (w^.wScreen.sDirection.hAltitude))
@@ -176,13 +176,13 @@ pictureHighlightedObject w s = case mc of Just (x,y) -> pict x y
       mc = screenCoordAt (w^.wScreen) (w^.wGeo) (w^.wCurrentTime) s
       pict x y = Pictures
         [ Color green . Translate x y $ circle (max 1 (6 - magnitude s))
-        , Color green . Translate (x + 10) (y - 10) $ Scale 0.1 0.1 $ text (description s)
+        , Color green . Translate (x + 10) (y - 10) . Scale 0.1 0.1 $ text (description s)
         ]
 
 
 pictureWorld :: World -> Picture
 pictureWorld w =
-  let stars = Pictures $ map pictureSkyObject (onScreenObjects w (w^.wCurrentTime));
+  let stars = Pictures $ fmap pictureSkyObject (onScreenObjects w (w^.wCurrentTime));
       highlight = maybe Blank (pictureHighlightedObject w) (w ^. wHighlightedSkyObject)
   in Pictures [stars, pictureDashboard w, highlight]
 
