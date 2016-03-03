@@ -281,8 +281,8 @@ data Direction = DTop|DBottom|DLeft|DRight
 data ViewingReport =
   ViewingReport{
    _vPassages  :: [((Deg, HorPos, Direction), (Deg, HorPos, Direction))],
-   _vMinHeight :: Deg,
-   _vMaxHeight :: Deg
+   _vMinHeight :: (Deg, HorPos),
+   _vMaxHeight :: (Deg, HorPos)
 } deriving Show
 
 makeLenses ''ViewingReport
@@ -302,18 +302,19 @@ createViewingReport geo r eq = if noAnswer then Nothing else
     rs' = sortWith (fst.fst) $  concat [hminis, hmaxis, azminis, azmaxis]
     rs = fmap (\((x, y), z) -> (x, y, z)) rs'
 
-
     minh =
       let lp = lowestPos geo eq in
         if viewingRestriction r lp
-          then lp ^. hAltitude
-          else minimum $ fmap (\(_,HorPos _ al,_) -> al) rs
+          then (localSiderealtimeFromPos geo eq lp, lp)
+          else head $ sortWith (\(_, HorPos _ al) -> al) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
+
 
     maxh =
       let tp = transitPos geo eq in
         if viewingRestriction r tp
-          then tp ^. hAltitude
-          else maximum $ fmap (\(_,HorPos _ al,_) -> al) rs
+          then (localSiderealtimeFromPos geo eq tp, tp)
+          else last $ sortWith (\(_, HorPos _ al) -> al) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
+
 
     trs =  helper $ zip rs (fmap (\(s,_,_) -> laterIn s) rs)
     testPos s = toHorPosCoord  (s + 0.001) geo eq
@@ -328,6 +329,15 @@ joinAdjacentIntervals [] = []
 joinAdjacentIntervals ((t0, t1):(u0, u1):xs) = if standardizeDeg (t1 - u0) == 0 then joinAdjacentIntervals $ (t0, u1):xs
                                             else (t0, t1) : joinAdjacentIntervals ((u0, u1):xs)
 joinAdjacentIntervals [(t0, t1)] = [(t0, t1)]
+
+isInInterval:: Deg -> (Deg,Deg) -> Bool
+isInInterval a (t0, t1) =   if t0 > t1
+      then
+        ((t0 <= a) && (a <= 360))
+        || ((0 <= a) && (a <= t1))
+      else
+        (t0 <= a) &&
+        (t1 >= a)
 
 intersectInterval :: (Deg,Deg) -> (Deg,Deg) -> [(Deg,Deg)]
 intersectInterval (t0,t1) (u0,u1) | t0 <= t1 && u0 <= u1 = let maxStart = max t0 u0; minEnd = min t1 u1;
@@ -367,6 +377,14 @@ bestPosition geo r t d n so = if relevant geo r (lst0, lst1) (equatorial so)
     res = reverse . sortWith (\(_, _, HorPos _ x) -> x) $ filter (\(_,_, h) -> viewingRestriction r h) pos
     lst0 = localSiderealtime geo t
     lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)
+
+bestPosition2:: GeoLoc -> Rectangle -> SkyObject -> (Deg,Deg) -> UTCTime -> ViewingReport -> (UTCTime, SkyObject, HorPos)
+bestPosition2 geo r so (lst0,lst1) u vr = undefined
+  where
+    interss = concat $ map (\((x, _, _), (y, _, _)) -> intersectInterval (lst0, lst1) (x, y)) (vr^.vPassages)
+    haveAbsolute = any (\i -> isInInterval (fst (vr^.vMaxHeight)) i) interss
+
+
 
 tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Integer -> [(UTCTime, SkyObject, HorPos)]
 tour2 g m r t d n = sortWith (\(s,_,_)->s) $ mapMaybe (bestPosition g r t d n) objects
