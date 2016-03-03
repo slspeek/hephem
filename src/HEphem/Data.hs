@@ -8,12 +8,15 @@ import           Data.Vector.V3
 import           Control.Lens                     hiding (element)
 import           Text.Printf
 import           Data.Vector.Class
-
+import           Data.Fixed            (mod')
 
 type Deg = Degrees Double
 
 undeg :: Deg -> Double
 undeg (Degrees s) = s
+
+standardizeDeg:: Deg -> Deg
+standardizeDeg (Degrees d) = Degrees $ d `mod'` 360
 
 data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)

@@ -66,8 +66,7 @@ timeFromSidereal fromTime sTime =
   addUTCTime (realToFrac dt) fromTime
     where
       st0 = siderealtime fromTime
-      d' = sTime - st0
-      d  = if d' < 0 then d'+360 else d'
+      d = standardizeDeg $ sTime - st0
       (Degrees dt) = 24 * 10 * (24/24.06570982441908) * d
 
 currentSiderealtime :: IO Deg
@@ -77,9 +76,7 @@ currentLocalSiderealtime :: GeoLoc -> IO Deg
 currentLocalSiderealtime l = localSiderealtime l <$> getCurrentTime
 
 localSiderealtime :: GeoLoc -> UTCTime -> Deg
-localSiderealtime (GeoLoc _ long) ut = Degrees $ lst `mod'` 360
-  where
-    (Degrees lst) = siderealtime ut + long
+localSiderealtime (GeoLoc _ long) ut = standardizeDeg $ siderealtime ut + long
 
 -- Give location, a date a local siderealtime and
 -- we will give the next point in time with given local siderealtime time
@@ -114,8 +111,7 @@ toEqPosCoord  lst (GeoLoc fi _) (HorPos az al) = EqPos ra d
     lha = degrees $ solveAngle lhax lhay
     lhay = - sine az * cosine al / cosine d
     lhax = (sine al - sine d * sine fi) / (cosine d * cosine fi)
-    ra' = lst - lha
-    ra = if ra' < 0 then ra' + 360 else ra'
+    ra = standardizeDeg $ lst - lha
 
 horizontalToEquatorial :: GeoLoc -> UTCTime -> HorPos -> EqPos
 horizontalToEquatorial  loc ut = toEqPosCoord lst loc
@@ -166,12 +162,6 @@ pretty lz (t, so, HorPos a h) =
   where
     tf = formatTime defaultTimeLocale "%X" lt
     lt = utcToLocalTime lz t
-
--- for every obj calculate the position for an interval from time t for d seconds and a frame every n seconds.
--- get the best position (TODO mark it as absolute or time induced maximum)
--- sort the set by time and altitude
-
-
 
 timeInterval :: Integer -> Integer -> Integer -> [Integer]
 timeInterval t d n = if d >= 0 then t : timeInterval (t + n) (d - n) n
@@ -274,8 +264,8 @@ passages geo r eq = zip l $ fmap (minh &&& maxh &&& timeDelta) l
     l = zip (fst <$> filter snd c) (fst <$> filter (not . snd) c)
     minh p = min (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
     maxh p = max (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
-    timeDelta p = (/ 15)  (let t = fst (snd p) - fst (fst p)
-                      in if t < 0 then t + 360 else t)
+    timeDelta p = (/ 15) . standardizeDeg $ fst (snd p) - fst (fst p)
+
 
 testDisplayPassages ::  GeoLoc -> Rectangle -> EqPos -> IO ()
 testDisplayPassages geo r eq = mapM_  print  $ passages geo r eq
@@ -333,26 +323,30 @@ createViewingReport geo r eq = if noAnswer then Nothing else
 
     noAnswer = null ps && not (viewingRestriction r (lowestPos geo eq)) && not (viewingRestriction r (transitPos geo eq))
 
-intersectInterval :: (Deg,Deg) -> (Deg,Deg) -> Bool
-intersectInterval (t0,t1) (u0,u1) | t0 < t1 && u0 < u1 = (t0 < u1 && u1 < t1) || (t0 < u0 && u0 < t1) || (u0 < t0 && t0 < u1)
-                                                         || (u0 < t1 && t1 < u1)
+joinAdjacentIntervals:: [(Deg,Deg)] -> [(Deg,Deg)]
+joinAdjacentIntervals [] = []
+joinAdjacentIntervals ((t0, t1):(u0, u1):xs) = if standardizeDeg (t1 - u0) == 0 then joinAdjacentIntervals $ (t0, u1):xs
+                                            else (t0, t1) : joinAdjacentIntervals ((u0, u1):xs)
+joinAdjacentIntervals [(t0, t1)] = [(t0, t1)]
+
+intersectInterval :: (Deg,Deg) -> (Deg,Deg) -> [(Deg,Deg)]
+intersectInterval (t0,t1) (u0,u1) | t0 <= t1 && u0 <= u1 = let maxStart = max t0 u0; minEnd = min t1 u1;
+                                    in [(maxStart, minEnd) | maxStart <= minEnd]
                                   | t0 > t1 && u0 < u1 =
-                                    intersectInterval (t0, 360) (u0, u1) ||
-                                      intersectInterval (0, t1) (u0, u1)
+                                    joinAdjacentIntervals (intersectInterval (t0, 360) (u0, u1) ++ intersectInterval (0, t1) (u0, u1))
                                   | t0 > t1 && u0 > u1 =
-                                    intersectInterval (t0, 360) (u0, 360) ||
-                                      intersectInterval (0, t1) (u0, 360) ||
-                                        intersectInterval (t0, 360) (0, u1) ||
-                                          intersectInterval (0, t1) (0, u1)
+                                    joinAdjacentIntervals (intersectInterval (t0, 360) (u0, 360) ++
+                                      intersectInterval (0, t1) (u0, 360) ++
+                                        intersectInterval (t0, 360) (0, u1) ++
+                                          intersectInterval (0, t1) (0, u1))
                                   | t0 < t1 && u0 > u1 =
-                                    intersectInterval (t0, t1) (u0, 360) ||
-                                      intersectInterval (t0, t1) (0, u1)
-                                  | otherwise = False
+                                    joinAdjacentIntervals (intersectInterval (t0, t1) (u0, 360) ++ intersectInterval (t0, t1) (0, u1))
+                                  | otherwise = []
 
 relevant:: GeoLoc -> Rectangle -> (Deg, Deg) -> EqPos -> Bool
 relevant geo r (t0, t1) eq =
   case vr of Nothing -> False
-             Just rep -> null (rep^.vPassages) || any (\((x,_,_),(y,_,_)) -> intersectInterval (t0,t1) (x,y)) (rep^.vPassages)
+             Just rep -> null (rep^.vPassages) || any (\((x,_,_),(y,_,_)) -> not . null $ intersectInterval (t0,t1) (x,y)) (rep^.vPassages)
 
   -- union of ViewingReport without passages (circum polair) and
   -- Exits passage such that eq is visible for some time, i. e.

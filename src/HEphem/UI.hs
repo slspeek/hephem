@@ -7,7 +7,6 @@ import           Control.Arrow
 import           Control.Lens                     hiding (element)
 import           Control.Monad
 import           Data.Angle
-import           Data.Fixed                       (mod')
 import qualified Data.Map                         as Map
 import           Data.Maybe
 import           Data.Time.Clock
@@ -193,9 +192,6 @@ starColor = white
 advanceTime:: Float -> World -> World
 advanceTime t w = over wCurrentTime (addUTCTime (realToFrac (w^.wTimeFactor * t))) w
 
-dmod :: Deg -> Int -> Deg
-dmod (Degrees d) i = Degrees (d `mod'` fromIntegral i)
-
 findSkyObject:: World -> (Float,Float) -> Maybe SkyObject
 findSkyObject w p = findNear (visibleObjects w) eq 0.01
   where
@@ -205,8 +201,8 @@ findSkyObject w p = findNear (visibleObjects w) eq 0.01
 eventHandler :: Event -> World -> World
 eventHandler ev w =
   case ev of
-    EventKey (SpecialKey KeyLeft) Up _ _  -> over (wScreen . sDirection . hAzimuth) (\x -> (x-3) `dmod` 360) w
-    EventKey (SpecialKey KeyRight) Up _ _ -> over (wScreen . sDirection . hAzimuth) (\x -> (x+3) `dmod` 360) w
+    EventKey (SpecialKey KeyLeft) Up _ _  -> over (wScreen . sDirection . hAzimuth) (\x -> standardizeDeg (x-3)) w
+    EventKey (SpecialKey KeyRight) Up _ _ -> over (wScreen . sDirection . hAzimuth) (\x -> standardizeDeg (x+3)) w
     EventKey (SpecialKey KeyUp) Up _ _    -> over (wScreen . sDirection . hAltitude) (+3) w
     EventKey (SpecialKey KeyDown) Up _ _  -> over (wScreen . sDirection . hAltitude) (-3+) w
     EventKey (Char 'w') Up _ _            -> over (wScreen . sDistance) (* 1.1) w
