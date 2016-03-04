@@ -338,7 +338,7 @@ bestPosition geo r t d so = if relevant geo r (lst0, lst1) (equatorial so)
    then
      do
        vr <- createViewingReport geo r (equatorial so)
-       let ((lst, hp), score, tb, ta) = bestPosition2 geo so (lst0, lst1) vr
+       ((lst, hp), score, tb, ta) <- bestPosition2 geo so (lst0, lst1) vr
        return (localSiderealtimeToUtcTime geo t lst, so, hp, score, tb, ta)
    else
      Nothing
@@ -346,7 +346,7 @@ bestPosition geo r t d so = if relevant geo r (lst0, lst1) (equatorial so)
     lst0 = localSiderealtime geo t
     lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)
 
-bestPosition2:: GeoLoc ->  SkyObject -> Interval ->  ViewingReport -> ((Deg, HorPos), Deg, Deg, Deg)
+bestPosition2:: GeoLoc ->  SkyObject -> Interval ->  ViewingReport -> Maybe ((Deg, HorPos), Deg, Deg, Deg)
 bestPosition2 geo so (lst0,lst1) vr = hmax
   where
     interss = concatMap (\((x, _, _), (y, _, _)) -> intersectInterval (lst0, lst1) (x, y)) (vr^.vPassages)
@@ -361,13 +361,16 @@ bestPosition2 geo so (lst0,lst1) vr = hmax
     maxAtBegin x = snd (fst x) >= snd (snd x)
     hDuration = fst (snd heightestInterval) - fst (fst heightestInterval)
     hmax = if null hasAbsolute
-      then if maxAtBegin heightestInterval
+      then if not (null interss)
         then
-          (fst  heightestInterval, score vr (snd (fst heightestInterval)^.hAltitude),
-              0, hDuration)
-        else
-          (snd heightestInterval, score vr (snd (snd heightestInterval)^.hAltitude) , hDuration, 0)
-      else (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst heightestInterval)),
+          if maxAtBegin heightestInterval
+            then
+              return (fst  heightestInterval, score vr (snd (fst heightestInterval)^.hAltitude),
+                  0, hDuration)
+            else
+              return (snd heightestInterval, score vr (snd (snd heightestInterval)^.hAltitude) , hDuration, 0)
+          else Nothing
+      else return (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst heightestInterval)),
                                  standardizeDeg (fst (snd heightestInterval) - fst (vr^.vMaxHeight)))
 
 
@@ -378,7 +381,7 @@ bestPosition2 geo so (lst0,lst1) vr = hmax
 tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> [(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)]
 tour2 g m r t d = sortWith (\(s,_,_,_,_,_)->s) $ mapMaybe (bestPosition g r t d) objects
     where
-      objects = brightNGCObjects m
+      objects = brightSkyObjects m
 
 viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Double -> IO ()
 viewTourNow g m r d score =
