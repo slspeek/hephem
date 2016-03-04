@@ -25,7 +25,7 @@ import           Test.QuickCheck
 import           Text.Printf
 
 instance Arbitrary Screen where
-  arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (> 1))
+  arbitrary = liftM2 Screen arbitrary (suchThat arbitrary (\x -> x > 1 && x < 1000))
 
 -- | World in the Gloss Game sense
 data World = World

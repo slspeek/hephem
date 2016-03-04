@@ -12,8 +12,7 @@ import           Data.Fixed            (mod')
 
 type Deg = Degrees Double
 
-undeg :: Deg -> Double
-undeg (Degrees s) = s
+type Interval = (Deg, Deg)
 
 standardizeDeg:: Deg -> Deg
 standardizeDeg (Degrees d) = Degrees $ d `mod'` 360
@@ -115,25 +114,24 @@ class AEq a where
   (=~) :: a -> a -> Bool
 
 instance AEq Double where
-  x =~ y = abs (x - y) < (1.0e-4 :: Double)
+  x =~ y = abs (x - y) < (1.0e-3 :: Double)
 
 instance AEq Deg where
-  x =~ y = abs (x - y) < (1.0e-1 :: Deg)
+  x =~ y = abs (x - y) < (1.0e-4 :: Deg)
 
 instance AEq HorPos where
   (HorPos x y) =~ (HorPos x' y') = vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
     where
-      d = 1e-3 :: Double
+      -- has too be so big for manual test data
+      d = 1e-2
 
 instance AEq EqPos where
-  x =~ y = abs (eRA x - eRA y) < d && abs (eDec x - eDec y) < d
+  (EqPos x y) =~ (EqPos x' y') = vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
     where
-      d = 0.1 :: Deg
+      d = 1e-4
 
 instance AEq Vector3 where
-  v =~ w = abs (v3x v - v3x w) < d &&
-           abs (v3y v - v3y w) < d &&
-           abs (v3z v - v3z w) < d
+  v =~ w = vmag (v - w) < d
     where
       d = 1.0e-8 :: Double
 

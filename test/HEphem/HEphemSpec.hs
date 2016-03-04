@@ -118,7 +118,7 @@ prop_intersectHeight geo eq al =
 
 prop_intersectAzimuth ::  GeoLoc -> EqPos -> Double -> Property
 prop_intersectAzimuth geo eq az =
-  (az >= 0) && (az <= 360)
+  (az > 0) && (az <= 360)
   ==>
   all (\(lst, hp) -> hp =~ toHorPosCoord lst geo eq) (intersectAzimuth geo eq (Degrees az))
 
