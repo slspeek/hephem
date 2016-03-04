@@ -17,6 +17,10 @@ type Interval = (Deg, Deg)
 standardizeDeg:: Deg -> Deg
 standardizeDeg (Degrees d) = Degrees $ d `mod'` 360
 
+undeg:: Deg -> Double
+undeg (Degrees s) = s
+
+
 data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)
 
@@ -36,6 +40,9 @@ instance Arbitrary HorPos where
     return $ HorPos (Degrees az) (Degrees al)
 
 makeLenses ''HorPos
+
+instance Ord HorPos where
+  compare a b = compare (a ^. hAltitude) (b ^. hAltitude)
 
 data GeoLoc = GeoLoc { _gLatitude,_gLongitude :: Deg }
   deriving (Eq, Show)
@@ -112,8 +119,8 @@ makeLenses ''Rectangle
 class AEq a where
   (=~) :: a -> a -> Bool
 
-instance AEq Double where
-  x =~ y = abs (x - y) < (1.0e-3 :: Double)
+instance AEq Double where -- for solveTrigonom is it so big
+  x =~ y = abs (x - y) < (1.0e-2 :: Double)
 
 instance AEq Deg where
   x =~ y = abs (x - y) < (1.0e-4 :: Deg)

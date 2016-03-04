@@ -9,8 +9,10 @@ module HEphem.HEphem where
 import           Control.Lens          hiding (element)
 import           Data.Angle
 import           Data.Fixed            (mod')
+import           Data.List
 import qualified Data.Map              as Map
 import           Data.Maybe
+import           Data.Ord
 import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
@@ -156,9 +158,10 @@ printDeg deg = printf "%d\x00B0 %d\"%d'" d m s
   where
     (d, m, s) = toMinutesSeconds deg
 
-pretty :: TimeZone -> (UTCTime, SkyObject, HorPos) -> String
-pretty lz (t, so, HorPos a h) =
-  printf "%s  %s\tAzi: %s\tAlt: %s" tf (description so) (printDeg a) (printDeg h)
+pretty :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> String
+pretty lz (t, so, HorPos a h, score, tb, ta) =
+  printf "%s  %s\tAzi: %s\tAlt: %s\t Score: %.2f\t Before: %.2f\t After: %.2f"
+    tf (description so) (printDeg a) (printDeg h) (undeg score) (undeg tb) (undeg ta)
   where
     tf = formatTime defaultTimeLocale "%X" lt
     lt = utcToLocalTime lz t
@@ -271,8 +274,8 @@ createViewingReport geo r eq = if noAnswer then Nothing else
     azminis = a (fst(r^.rAzimuth)) DLeft
     azmaxis = a (snd(r^.rAzimuth)) DRight
 
-    h l s = zip ( filter (viewingRestriction r . snd) $ intersectHeight geo eq  (l)) (repeat s)
-    a l s = zip (filter (viewingRestriction r . snd) $ intersectAzimuth geo eq  (l)) (repeat s)
+    h l s = zip (filter (viewingRestriction r . snd) $ intersectHeight geo eq l) (repeat s)
+    a l s = zip (filter (viewingRestriction r . snd) $ intersectAzimuth geo eq l) (repeat s)
 
     rs' = sortWith (fst.fst) $  concat [hminis, hmaxis, azminis, azmaxis]
     rs = fmap (\((x, y), z) -> (x, y, z)) rs'
@@ -281,14 +284,14 @@ createViewingReport geo r eq = if noAnswer then Nothing else
       let lp = lowestPos geo eq in
         if viewingRestriction r lp
           then (localSiderealtimeFromPos geo eq lp, lp)
-          else head $ sortWith (\(_, HorPos _ al) -> al) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
+          else minimumBy (comparing (\(_, HorPos _ al) -> al)) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
 
 
     maxh =
       let tp = transitPos geo eq in
         if viewingRestriction r tp
           then (localSiderealtimeFromPos geo eq tp, tp)
-          else last $ sortWith (\(_, HorPos _ al) -> al) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
+          else maximumBy (comparing(\(_, HorPos _ al) -> al)) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
 
 
     trs =  helper $ zip rs (fmap (\(s,_,_) -> laterIn s) rs)
@@ -330,34 +333,56 @@ relevant geo r (t0, t1) eq =
   where
     vr = createViewingReport geo r eq
 
-bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos)
-bestPosition geo r t d n so = if relevant geo r (lst0, lst1) (equatorial so)
+bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)
+bestPosition geo r t d so = if relevant geo r (lst0, lst1) (equatorial so)
    then
-    listToMaybe res
+     do
+       vr <- createViewingReport geo r (equatorial so)
+       let ((lst, hp), score, tb, ta) = bestPosition2 geo so (lst0, lst1) vr
+       return (localSiderealtimeToUtcTime geo t lst, so, hp, score, tb, ta)
    else
      Nothing
   where
-    f t' = (t', so, equatorialToHorizontal geo t' (equatorial so));
-    pos = fmap f (utctimeInterval t d n)
-    -- descending on altitude
-    res = reverse . sortWith (\(_, _, HorPos _ x) -> x) $ filter (\(_,_, h) -> viewingRestriction r h) pos
     lst0 = localSiderealtime geo t
     lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)
 
-bestPosition2:: GeoLoc -> Rectangle -> SkyObject -> Interval -> UTCTime -> ViewingReport -> (UTCTime, SkyObject, HorPos)
-bestPosition2 geo r so (lst0,lst1) u vr = undefined
+bestPosition2:: GeoLoc ->  SkyObject -> Interval ->  ViewingReport -> ((Deg, HorPos), Deg, Deg, Deg)
+bestPosition2 geo so (lst0,lst1) vr = hmax
   where
-    interss = concat $ map (\((x, _, _), (y, _, _)) -> intersectInterval (lst0, lst1) (x, y)) (vr^.vPassages)
-    haveAbsolute = any (\i -> isInInterval (fst (vr^.vMaxHeight)) i) interss
+    interss = concatMap (\((x, _, _), (y, _, _)) -> intersectInterval (lst0, lst1) (x, y)) (vr^.vPassages)
+    eq = equatorial so
+    score v x = let minH = snd (v^.vMinHeight)^.hAltitude ;
+                      maxH = snd (v^.vMaxHeight)^.hAltitude
+                        in 100 * (x - minH)/ (maxH - minH)
+    hasAbsolute = filter (isInInterval (fst (vr^.vMaxHeight))) interss
+    borderPoss = map (\(s0, s1) -> ((s0, toHorPosCoord s0 geo eq), (s1, toHorPosCoord s1 geo eq))) interss
+    m = maximumBy $ comparing snd
+    heightestInterval = fst $ maximumBy (comparing snd) (map (\z -> (z, m z)) borderPoss)
+    maxAtBegin x = snd (fst x) >= snd (snd x)
+    hDuration = fst (snd heightestInterval) - fst (fst heightestInterval)
+    hmax = if null hasAbsolute
+      then if maxAtBegin heightestInterval
+        then
+          (fst  heightestInterval, score vr (snd (fst heightestInterval)^.hAltitude),
+              0, hDuration)
+        else
+          (snd heightestInterval, score vr (snd (snd heightestInterval)^.hAltitude) , hDuration, 0)
+      else (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst heightestInterval)),
+                                 standardizeDeg (fst (snd heightestInterval) - fst (vr^.vMaxHeight)))
 
-tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Integer -> [(UTCTime, SkyObject, HorPos)]
-tour2 g m r t d n = sortWith (\(s,_,_)->s) $ mapMaybe (bestPosition g r t d n) objects
+
+
+
+
+
+tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> [(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)]
+tour2 g m r t d = sortWith (\(s,_,_,_,_,_)->s) $ mapMaybe (bestPosition g r t d) objects
     where
       objects = brightNGCObjects m
 
-viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Integer -> IO ()
-viewTourNow g m r d n =
+viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Double -> IO ()
+viewTourNow g m r d score =
   do
     t <- getCurrentTime
     lz <- getCurrentTimeZone
-    mapM_ (putStrLn . pretty lz) $ tour2 g m r t d n
+    mapM_ (putStrLn . pretty lz) . filter (\(_, _, _, s, _, _) -> undeg s > score) $ tour2 g m r t d
