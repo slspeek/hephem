@@ -103,10 +103,9 @@ description (NGC (NGCObject i _ me t _ _ _ m )) =
 
 
 data Rectangle = Rectangle{
-    _minAz::Deg,
-    _maxAz::Deg,
-    _minAl::Deg,
-    _maxAl::Deg}
+    _rAzimuth::Interval,
+    _rAltitude::Interval
+    }
 
 makeLenses ''Rectangle
 
@@ -120,13 +119,15 @@ instance AEq Deg where
   x =~ y = abs (x - y) < (1.0e-4 :: Deg)
 
 instance AEq HorPos where
-  (HorPos x y) =~ (HorPos x' y') = vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
+  (HorPos x y) =~ (HorPos x' y') =
+     vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
     where
       -- has too be so big for manual test data
       d = 1e-2
 
 instance AEq EqPos where
-  (EqPos x y) =~ (EqPos x' y') = vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
+  (EqPos x y) =~ (EqPos x' y') =
+     vmag (cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)) < d
     where
       d = 1e-4
 

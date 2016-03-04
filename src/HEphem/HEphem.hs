@@ -6,7 +6,6 @@
 -- | http://star-www.st-and.ac.uk/~fv/webnotes/chapter7.htm
 module HEphem.HEphem where
 
-import           Control.Arrow
 import           Control.Lens          hiding (element)
 import           Data.Angle
 import           Data.Fixed            (mod')
@@ -147,7 +146,7 @@ isInInterval a (t0, t1) =   if t0 > t1
 
 viewingRestriction :: Rectangle -> HorPos -> Bool
 viewingRestriction r (HorPos a h) =
-  isInInterval  a (r^.minAz, r^.maxAz) && isInInterval h (r^.minAl, r^.maxAl)
+  isInInterval  a (r^.rAzimuth) && isInInterval h (r^.rAltitude)
 
 tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Int -> [(UTCTime, SkyObject, HorPos)]
 tour g m r t _ = (\(desc, pos) -> (t, desc, pos)) <$> visibleIn g m r t
@@ -240,36 +239,11 @@ intersectHeight g eq a =
     let ps = HorPos az a
     return (localSiderealtimeFromPos g eq ps, ps)
 
-crossingRect :: GeoLoc -> Rectangle -> EqPos -> [((Deg, HorPos), Bool)]
-crossingRect geo r eq =  zip rs (fmap (\(s, _) -> laterIn s) rs)
-  where
-    f = filter (viewingRestriction r . snd)
-    hminis = f $ intersectHeight geo eq (r^.minAl)
-    hmaxis = f $ intersectHeight geo eq (r^.maxAl)
-    azminis = f $ intersectAzimuth geo eq (r^.minAz)
-    azmaxis = f $ intersectAzimuth geo eq  (r^.maxAz)
-    rs = sortWith fst $  concat [hminis, hmaxis, azminis, azmaxis]
-    testPos s = toHorPosCoord  (s + 0.001) geo eq
-    laterIn s = viewingRestriction r (testPos s)
 
 helper :: [(a, Bool)] -> [(a, Bool)]
 helper l =
    case l of [] -> []
              h:xs -> if snd h then h:xs else xs `mappend` [h]
-
-passages :: GeoLoc -> Rectangle -> EqPos -> [(((Deg, HorPos), (Deg, HorPos)), (Deg, (Deg, Deg)))]
-passages geo r eq = zip l $ fmap (minh &&& maxh &&& timeDelta) l
-  where
-    crss = crossingRect geo r eq
-    c = helper crss
-    l = zip (fst <$> filter snd c) (fst <$> filter (not . snd) c)
-    minh p = min (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
-    maxh p = max (snd (fst p)^.hAltitude) (snd(snd p)^.hAltitude)
-    timeDelta p = (/ 15) . standardizeDeg $ fst (snd p) - fst (fst p)
-
-
-testDisplayPassages ::  GeoLoc -> Rectangle -> EqPos -> IO ()
-testDisplayPassages geo r eq = mapM_  print  $ passages geo r eq
 
 -- Want for any SkyObject, geo, viewing rectangle
 -- * passages if any
@@ -292,13 +266,13 @@ createViewingReport :: GeoLoc -> Rectangle -> EqPos -> Maybe ViewingReport
 createViewingReport geo r eq = if noAnswer then Nothing else
                                           Just $ ViewingReport ps minh maxh
   where
-    hminis = h minAl DBottom
-    hmaxis = h maxAl DTop
-    azminis = a minAz DLeft
-    azmaxis = a maxAz DRight
+    hminis = h (fst(r^.rAltitude)) DBottom
+    hmaxis = h (snd(r^.rAltitude)) DTop
+    azminis = a (fst(r^.rAzimuth)) DLeft
+    azmaxis = a (snd(r^.rAzimuth)) DRight
 
-    h l s = zip ( filter (viewingRestriction r . snd) $ intersectHeight geo eq  (r^.l)) (repeat s)
-    a l s = zip (filter (viewingRestriction r . snd) $ intersectAzimuth geo eq  (r^.l)) (repeat s)
+    h l s = zip ( filter (viewingRestriction r . snd) $ intersectHeight geo eq  (l)) (repeat s)
+    a l s = zip (filter (viewingRestriction r . snd) $ intersectAzimuth geo eq  (l)) (repeat s)
 
     rs' = sortWith (fst.fst) $  concat [hminis, hmaxis, azminis, azmaxis]
     rs = fmap (\((x, y), z) -> (x, y, z)) rs'
@@ -375,8 +349,6 @@ bestPosition2 geo r so (lst0,lst1) u vr = undefined
   where
     interss = concat $ map (\((x, _, _), (y, _, _)) -> intersectInterval (lst0, lst1) (x, y)) (vr^.vPassages)
     haveAbsolute = any (\i -> isInInterval (fst (vr^.vMaxHeight)) i) interss
-
-
 
 tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Integer -> [(UTCTime, SkyObject, HorPos)]
 tour2 g m r t d n = sortWith (\(s,_,_)->s) $ mapMaybe (bestPosition g r t d n) objects
