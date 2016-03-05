@@ -12,6 +12,13 @@ import           Data.Fixed            (mod', div')
 
 type Deg = Degrees Double
 
+instance Arbitrary Deg where
+  arbitrary =
+    do
+      d <- suchThat arbitrary (\x -> x >= 0 && x <= 360)
+      return $ Degrees d
+
+
 type Interval = (Deg, Deg)
 
 standardizeDeg:: Deg -> Deg
@@ -130,9 +137,18 @@ description (NGC (NGCObject i _ me t _ _ _ m )) =
 data Rectangle = Rectangle{
     _rAzimuth::Interval,
     _rAltitude::Interval
-    }
+    } deriving (Show)
 
 makeLenses ''Rectangle
+
+instance Arbitrary Rectangle where
+  arbitrary =
+    do
+      az0 <- suchThat arbitrary (\x -> x >= 0 && x < 360)
+      az1 <- suchThat arbitrary (\x -> x >= 0 && x < 360)
+      al0 <- suchThat arbitrary (\x -> x >= 0 && x < 90)
+      al1 <- suchThat arbitrary (\x -> x >= al0 && x < 90)
+      return $ Rectangle (az0, az1) (al0, al1)
 
 class AEq a where
   (=~) :: a -> a -> Bool

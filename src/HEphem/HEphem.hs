@@ -315,29 +315,24 @@ bestPosition2 geo so (lst0,lst1) vr = hmax
     hasAbsolute = filter (isInInterval (fst (vr^.vMaxHeight))) interss
     borderPoss = map (\(s0, s1) -> ((s0, toHorPosCoord s0 geo eq), (s1, toHorPosCoord s1 geo eq))) interss
     m = maximumBy $ comparing snd
-    heightestInterval = fst $ maximumBy (comparing snd) (map (\z -> (z, m z)) borderPoss)
+    highestInterval = fst $ maximumBy (comparing snd) (map (\z -> (z, m z)) borderPoss)
     maxAtBegin x = snd (fst x) >= snd (snd x)
-    hDuration = fst (snd heightestInterval) - fst (fst heightestInterval)
+    hDuration = fst (snd highestInterval) - fst (fst highestInterval)
     hmax = if null hasAbsolute
       then if not (null interss)
         then
-          if maxAtBegin heightestInterval
+          if maxAtBegin highestInterval
             then
-              return (fst  heightestInterval, score vr (snd (fst heightestInterval)^.hAltitude),
+              return (fst  highestInterval, score vr (snd (fst highestInterval)^.hAltitude),
                   0, hDuration)
             else
-              return (snd heightestInterval, score vr (snd (snd heightestInterval)^.hAltitude) , hDuration, 0)
+              return (snd highestInterval, score vr (snd (snd highestInterval)^.hAltitude) , hDuration, 0)
           else Nothing
-      else return (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst heightestInterval)),
-                                 standardizeDeg (fst (snd heightestInterval) - fst (vr^.vMaxHeight)))
+      else return (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst highestInterval)),
+                                 standardizeDeg (fst (snd highestInterval) - fst (vr^.vMaxHeight)))
 
-
-
-
-
-
-tour2 :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> [(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)]
-tour2 g m r t d = sortWith (\(s,_,_,_,_,_)->s) $ mapMaybe (bestPosition g r t d) objects
+tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> [(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)]
+tour g m r t d = sortWith (\(s,_,_,_,_,_)->s) $ mapMaybe (bestPosition g r t d) objects
     where
       objects = brightSkyObjects m
 
@@ -346,4 +341,4 @@ viewTourNow g m r d score =
   do
     t <- getCurrentTime
     lz <- getCurrentTimeZone
-    mapM_ (putStrLn . pretty lz) . filter (\(_, _, _, s, _, _) -> undeg s > score) $ tour2 g m r t d
+    mapM_ (putStrLn . pretty lz) . filter (\(_, _, _, s, _, _) -> undeg s > score) $ tour g m r t d

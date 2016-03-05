@@ -6,6 +6,7 @@ import           Data.Angle
 import           Data.Maybe
 import           Data.Time.Calendar
 import           Data.Time.Clock
+import           Data.Vector.Class
 import           HEphem.BSParser
 import           HEphem.Data
 import           HEphem.HEphem
@@ -122,6 +123,34 @@ prop_intersectAzimuth geo eq az =
   ==>
   all (\(lst, hp) -> hp =~ toHorPosCoord lst geo eq) (intersectAzimuth geo eq (Degrees az))
 
+prop_intervalLeftBorder :: Interval -> Bool
+prop_intervalLeftBorder (t0, t1) = isInInterval t0 (t0, t1)
+
+prop_intervalRightBorder :: Interval -> Bool
+prop_intervalRightBorder (t0, t1) = isInInterval t1 (t0, t1)
+
+prop_tourGivesInRectangle:: GeoLoc -> Rectangle -> Bool
+prop_tourGivesInRectangle geo r =
+  all (\(u, so, hp, _, _, _) -> con geo u (equatorial so) hp) t
+    where
+      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600)
+      -- con g u eq hp = let hp' = equatorialToHorizontal g u eq; in
+      --                       vmag (cartesian (hp, 1) - cartesian (hp', 1)) < 0.1
+      con _ _ _ hp = viewingRestriction r hp
+        || ((isInInterval (hp^.hAzimuth) (r^.rAzimuth))
+          && ((hp ^.hAltitude) =~ fst(r^.rAltitude) || (hp ^.hAltitude) =~ snd(r^.rAltitude) ))
+        || ((isInInterval (hp^.hAltitude) (r^.rAltitude))
+          && ((hp ^.hAzimuth) =~ fst(r^.rAzimuth) || (hp ^.hAzimuth) =~ snd(r^.rAzimuth) ))
+
+prop_tourGivesCorrectPositions:: GeoLoc -> Rectangle -> Bool
+prop_tourGivesCorrectPositions geo r =
+  all (\(u, so, hp, _, _, _) -> con geo u (equatorial so) hp) t
+    where
+      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600)
+      con g u eq hp = let hp' = equatorialToHorizontal g u eq; in
+        vmag (cartesian (hp, 1) - cartesian (hp', 1)) < 0.1
+
+
 spec :: SpecWith ()
 spec = describe "HEphem" $
   describe "siderealtime" $ do
@@ -196,3 +225,21 @@ spec = describe "HEphem" $
         intersectInterval (10,20) (320,14) `shouldBe` [(10, 14)]
       it "should work for reverse ordered intervals 4" $
         intersectInterval (90,180) (170,100) `shouldBe` [(170,180), (90, 100)]
+      it "should work for reverse ordered intervals 5" $
+        intersectInterval (4, 2) (250,10) `shouldBe` [(250,2), (4, 10)]
+      it "should work for reverse ordered intervals 6" $
+        intersectInterval (8, 260) (250,10) `shouldBe` [(250, 260), (8,10)]
+
+    describe "isInInterval" $ do
+      it "includes left border" $
+        property prop_intervalLeftBorder
+      it "includes right border" $
+        property prop_intervalRightBorder
+      it "goes over zero" $
+        isInInterval 1 (350, 2) `shouldBe` True
+
+    describe "tour" $ do
+      it "gives positions in the rectangle" $
+        property prop_tourGivesInRectangle
+      it "gives correct positions" $
+        property prop_tourGivesCorrectPositions

@@ -4,3 +4,10 @@ import HEphem.TestUtil
 import Test.QuickCheck
 import Data.Maybe
 import Data.Angle
+import HEphem.HEphemSpec
+import Data.Time
+
+let r = Rectangle {_rAzimuth = (Degrees 6.737782440822794,Degrees 5.030014482277624), _rAltitude = (Degrees 10.683212845095749,Degrees 43.8922893798338)}
+
+let g =  GeoLoc {_gLatitude = Degrees 3.06818413257319, _gLongitude = Degrees 5.43503359172862}
+mapM_ (print) $ tour g 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600)
