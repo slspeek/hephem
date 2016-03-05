@@ -23,7 +23,6 @@ import           GHC.Exts
 import           HEphem.BSParser
 import           HEphem.Data
 import           HEphem.NGCParser
-import           HEphem.ParserUtil
 import           Text.Printf
 
 geoAms :: GeoLoc
@@ -54,11 +53,8 @@ brightFilter ss m = filter (\s -> magnitude s < m) ss
 siderealtime :: UTCTime -> Deg
 siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
   where
-    d
-    {-- need the 0.5 to get from modified julian date to reduced julian date --} = fracDays ut -
-                                                                                   fromIntegral
-                                                                                     time20000101 -
-                                                                                   0.5
+    -- need the 0.5 to get from modified julian date to reduced julian date --
+    d = fracDays ut - fromIntegral time20000101 - 0.5
     time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
     sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
 
@@ -70,16 +66,10 @@ timeFromSidereal fromTime sTime =
       d = standardizeDeg $ sTime - st0
       (Degrees dt) = 24 * 10 * (24/24.06570982441908) * d
 
-currentSiderealtime :: IO Deg
-currentSiderealtime = siderealtime <$> getCurrentTime
-
-currentLocalSiderealtime :: GeoLoc -> IO Deg
-currentLocalSiderealtime l = localSiderealtime l <$> getCurrentTime
-
 localSiderealtime :: GeoLoc -> UTCTime -> Deg
 localSiderealtime (GeoLoc _ long) ut = standardizeDeg $ siderealtime ut + long
 
--- Give location, a date a local siderealtime and
+-- Given a location, a date and a local siderealtime and
 -- we will give the next point in time with given local siderealtime time
 localSiderealtimeToUtcTime :: GeoLoc -> UTCTime -> Deg -> UTCTime
 localSiderealtimeToUtcTime (GeoLoc _ long) ut lst =
@@ -126,18 +116,6 @@ findNear ss eq d = listToMaybe [ s | (sd, s) <- [closest], sd < d]
     closest = Map.findMin $ Map.fromList distances
     dis (EqPos x y) (EqPos x' y') = vmag $ cartesian (HorPos x y, 1) - cartesian (HorPos x' y', 1)
 
-visibleInNow :: GeoLoc -> Float -> Rectangle -> IO [(SkyObject, HorPos)]
-visibleInNow geo minMag r =
-   do
-     t <- getCurrentTime
-     return $ visibleIn geo minMag r t
-
-visibleIn :: GeoLoc -> Float -> Rectangle -> UTCTime -> [(SkyObject, HorPos)]
-visibleIn geo minMag r t =
-    let f so = equatorialToHorizontal geo t (equatorial so);
-        sos = brightSkyObjects minMag
-    in filter (\(_, h) -> viewingRestriction r h) (zip sos (fmap f sos))
-
 isInInterval:: Deg -> Interval -> Bool
 isInInterval a (t0, t1) =   if t0 > t1
       then
@@ -150,18 +128,11 @@ viewingRestriction :: Rectangle -> HorPos -> Bool
 viewingRestriction r (HorPos a h) =
   isInInterval  a (r^.rAzimuth) && isInInterval h (r^.rAltitude)
 
-tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Int -> [(UTCTime, SkyObject, HorPos)]
-tour g m r t _ = (\(desc, pos) -> (t, desc, pos)) <$> visibleIn g m r t
-
-printDeg :: Deg -> String
-printDeg deg = printf "%d\x00B0 %d\"%d'" d m s
-  where
-    (d, m, s) = toMinutesSeconds deg
-
 pretty :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> String
 pretty lz (t, so, HorPos a h, score, tb, ta) =
-  printf "%s  %s\tAzi: %s\tAlt: %s\t Score: %.2f\t Before: %.2f\t After: %.2f"
-    tf (description so) (printDeg a) (printDeg h) (undeg score) (undeg tb) (undeg ta)
+  printf "%s  %s\tAzi: %s\tAlt: %s\tScore: %.2f\tBefore: %s After: %s"
+    tf (description so) (printDeg a) (printDeg h)
+     (undeg score) (printDegAsTime tb) (printDegAsTime ta)
   where
     tf = formatTime defaultTimeLocale "%X" lt
     lt = utcToLocalTime lz t
@@ -251,7 +222,7 @@ helper l =
 -- Want for any SkyObject, geo, viewing rectangle
 -- * passages if any
 -- * min height and max height
--- * total amount of time the object is visible
+
 
 data Direction = DTop|DBottom|DLeft|DRight
   deriving (Show, Eq)
@@ -315,33 +286,20 @@ intersectInterval (t0,t1) (u0,u1) | t0 <= t1 && u0 <= u1 = let maxStart = max t0
                                     joinAdjacentIntervals (intersectInterval (t0, 360) (u0, u1) ++ intersectInterval (0, t1) (u0, u1))
                                   | t0 > t1 && u0 > u1 =
                                     joinAdjacentIntervals (intersectInterval (t0, 360) (u0, 360) ++
-                                      intersectInterval (0, t1) (u0, 360) ++
-                                        intersectInterval (t0, 360) (0, u1) ++
-                                          intersectInterval (0, t1) (0, u1))
+                                      intersectInterval (0, t1) (0, u1) ++
+                                        intersectInterval (0, t1) (u0, 360) ++
+                                          intersectInterval (t0, 360) (0, u1))
+
                                   | t0 < t1 && u0 > u1 =
                                     joinAdjacentIntervals (intersectInterval (t0, t1) (u0, 360) ++ intersectInterval (t0, t1) (0, u1))
                                   | otherwise = []
 
-relevant:: GeoLoc -> Rectangle -> Interval -> EqPos -> Bool
-relevant geo r (t0, t1) eq =
-  case vr of Nothing -> False
-             Just rep -> null (rep^.vPassages) || any (\((x,_,_),(y,_,_)) -> not . null $ intersectInterval (t0,t1) (x,y)) (rep^.vPassages)
-
-  -- union of ViewingReport without passages (circum polair) and
-  -- Exits passage such that eq is visible for some time, i. e.
-  -- the intervals have a non-empty intersection.
-  where
-    vr = createViewingReport geo r eq
-
 bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)
-bestPosition geo r t d so = if relevant geo r (lst0, lst1) (equatorial so)
-   then
+bestPosition geo r t d so =
      do
        vr <- createViewingReport geo r (equatorial so)
        ((lst, hp), score, tb, ta) <- bestPosition2 geo so (lst0, lst1) vr
        return (localSiderealtimeToUtcTime geo t lst, so, hp, score, tb, ta)
-   else
-     Nothing
   where
     lst0 = localSiderealtime geo t
     lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)

@@ -1,7 +1,6 @@
 module HEphem.ParserUtil where
 
 import           Data.Angle
-import           Data.Fixed  (div')
 import           GHC.Float
 import           HEphem.Data
 
@@ -15,12 +14,3 @@ fromHMS :: Int -> Int -> Float -> Deg
 fromHMS h m s = 15.0 * dhours
   where
     dhours = fromDMS h m s
-
-toMinutesSeconds :: Deg -> (Int, Int, Int)
-toMinutesSeconds (Degrees d) = (i, m, s)
-  where
-    i = floor d
-    r = d - fromIntegral i
-    m = r `div'` (1 / 60)
-    r' = r - fromIntegral m * (1 / 60)
-    s = r' `div'` (1 / 3600)

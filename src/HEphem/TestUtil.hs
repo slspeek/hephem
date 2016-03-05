@@ -7,6 +7,7 @@ import           Data.Time.Clock
 import           Data.Vector.V3
 import           HEphem.BSParser
 import           HEphem.Data
+import           HEphem.HEphem
 import           Test.HUnit
 import           Test.QuickCheck
 import           Text.ParserCombinators.ReadP
@@ -75,3 +76,9 @@ m13 =
     , nDec = 0
     , nMag = 5.2
      }
+
+currentSiderealtime :: IO Deg
+currentSiderealtime = siderealtime <$> getCurrentTime
+
+currentLocalSiderealtime :: GeoLoc -> IO Deg
+currentLocalSiderealtime l = localSiderealtime l <$> getCurrentTime

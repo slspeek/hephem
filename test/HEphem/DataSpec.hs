@@ -23,8 +23,6 @@ testSolveAngle = TestList
     b = sqrt 2.0 / 2
     qp = pi / 4
 
-
-
 testCartesian :: HorPos -> Vector3 -> Test
 testCartesian hor v = TestCase $ v @=~? cartesian (hor, 1)
 
@@ -75,3 +73,7 @@ spec = describe "Data module" $ do
 
     it "show ngc no type and magintude" $
       description (NGC m13) `shouldBe` "M-13 1234 Type GC Mag 5.2"
+
+  describe "toMinutesSeconds" $
+      it "formats 1.5 as 1 30 00" $
+        toMinutesSeconds 1.5 `shouldBe` (1, 30, 0)

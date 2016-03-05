@@ -8,7 +8,7 @@ import           Data.Vector.V3
 import           Control.Lens                     hiding (element)
 import           Text.Printf
 import           Data.Vector.Class
-import           Data.Fixed            (mod')
+import           Data.Fixed            (mod', div')
 
 type Deg = Degrees Double
 
@@ -20,6 +20,24 @@ standardizeDeg (Degrees d) = Degrees $ d `mod'` 360
 undeg:: Deg -> Double
 undeg (Degrees s) = s
 
+toMinutesSeconds :: Deg -> (Int, Int, Int)
+toMinutesSeconds (Degrees d) = (i, m, s)
+  where
+    i = floor d
+    r = d - fromIntegral i
+    m = r `div'` (1 / 60)
+    r' = r - fromIntegral m * (1 / 60)
+    s = r' `div'` (1 / 3600)
+
+printDeg :: Deg -> String
+printDeg deg = printf "%d\x00B0 %d\"%d'" d m s
+  where
+    (d, m, s) = toMinutesSeconds deg
+
+printDegAsTime :: Deg -> String
+printDegAsTime deg = printf "%dh %dm%ds" d m s
+  where
+    (d, m, s) = toMinutesSeconds (deg/15)
 
 data EqPos = EqPos { eRA,eDec :: Deg }
   deriving (Eq, Show)
