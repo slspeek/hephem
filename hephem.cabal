@@ -10,7 +10,7 @@ name:                hephem
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.7.5
+version:             0.7.6
 
 -- A short (one-line) description of the package.
 synopsis:            Learning project calculating star positions
@@ -107,7 +107,7 @@ test-suite spec
   type:              exitcode-stdio-1.0
   hs-source-dirs:    test, src
   main-is:           Spec.hs
---  ghc-options:        -Wall -fhpc  
+--  ghc-options:        -Wall -fhpc
   ghc-options:        -Wall
   build-depends:     base
                      ,containers >= 0.5.6.2

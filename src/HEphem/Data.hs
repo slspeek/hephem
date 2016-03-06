@@ -185,11 +185,18 @@ instance (AEq a) => AEq (Radians a) where
 
 {--| Given cos A and sin A solve A --}
 solveAngle :: Double -> Double -> Radians Double
-solveAngle c s
+solveAngle c s = solveAngle' (cutoff c) (cutoff s)
+
+solveAngle' :: Double -> Double -> Radians Double
+solveAngle' c s
   | s > 0 = arccosine c
   | c > 0 = Radians (2 * pi) + arcsine s
   | otherwise = Radians (2 * pi) - arccosine c
 
+cutoff :: Double -> Double
+cutoff d | d < -1 = -1
+         | d > 1 = 1
+         | otherwise = d
 
 cartesian :: (HorPos, Double) -> Vector3
 cartesian (HorPos az al, r) = Vector3

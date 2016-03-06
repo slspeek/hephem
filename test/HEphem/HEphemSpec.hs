@@ -150,6 +150,11 @@ prop_tourGivesCorrectPositions geo r =
       con g u eq hp = let hp' = equatorialToHorizontal g u eq; in
         vmag (cartesian (hp, 1) - cartesian (hp', 1)) < 0.1
 
+prop_toHorAtTransit:: GeoLoc -> EqPos -> Bool
+prop_toHorAtTransit g eq = toHorPosCoord t g eq =~ tp
+  where
+    tp = transitPos g eq
+    t = localSiderealtimeFromPos g eq tp
 
 spec :: SpecWith ()
 spec = describe "HEphem" $
