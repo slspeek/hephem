@@ -128,15 +128,6 @@ viewingRestriction :: Rectangle -> HorPos -> Bool
 viewingRestriction r (HorPos a h) =
   isInInterval  a (r^.rAzimuth) && isInInterval h (r^.rAltitude)
 
-pretty :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> String
-pretty lz (t, so, HorPos a h, score, tb, ta) =
-  printf "%s  %s\tAzi: %s\tAlt: %s\tScore: %.2f\tBefore: %s After: %s"
-    tf (description so) (printDeg a) (printDeg h)
-     (undeg score) (printDegAsTime tb) (printDegAsTime ta)
-  where
-    tf = formatTime defaultTimeLocale "%X" lt
-    lt = utcToLocalTime lz t
-
 timeInterval :: Integer -> Integer -> Integer -> [Integer]
 timeInterval t d n = if d >= 0 then t : timeInterval (t + n) (d - n) n
                                else []
@@ -331,14 +322,23 @@ bestPosition2 geo so (lst0,lst1) vr = hmax
       else return (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst highestInterval)),
                                  standardizeDeg (fst (snd highestInterval) - fst (vr^.vMaxHeight)))
 
-tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> [(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)]
-tour g m r t d = sortWith (\(s,_,_,_,_,_)->s) $ mapMaybe (bestPosition g r t d) objects
+tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Double -> [(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)]
+tour g m r t d score = filter (\(_, _, _, s, _, _) -> undeg s > score) . sortWith (\(s,_,_,_,_,_)->s) $ mapMaybe (bestPosition g r t d) objects
     where
       objects = brightSkyObjects m
+
+pretty :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> String
+pretty lz (t, so, HorPos a h, score, tb, ta) =
+  printf "%s  %s\tAzi: %s\tAlt: %s\tScore: %.2f\tBefore: %s After: %s"
+    tf (description so) (printDeg a) (printDeg h)
+     (undeg score) (printDegAsTime tb) (printDegAsTime ta)
+  where
+    tf = formatTime defaultTimeLocale "%X" lt
+    lt = utcToLocalTime lz t
 
 viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Double -> IO ()
 viewTourNow g m r d score =
   do
     t <- getCurrentTime
     lz <- getCurrentTimeZone
-    mapM_ (putStrLn . pretty lz) . filter (\(_, _, _, s, _, _) -> undeg s > score) $ tour g m r t d
+    mapM_ (putStrLn . pretty lz)  $ tour g m r t d score

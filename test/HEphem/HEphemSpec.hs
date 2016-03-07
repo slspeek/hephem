@@ -133,7 +133,7 @@ prop_tourGivesInRectangle:: GeoLoc -> Rectangle -> Bool
 prop_tourGivesInRectangle geo r =
   all (\(u, so, hp, _, _, _) -> con geo u (equatorial so) hp) t
     where
-      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600)
+      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0
       -- con g u eq hp = let hp' = equatorialToHorizontal g u eq; in
       --                       vmag (cartesian (hp, 1) - cartesian (hp', 1)) < 0.1
       con _ _ _ hp = viewingRestriction r hp
@@ -146,7 +146,7 @@ prop_tourGivesCorrectPositions:: GeoLoc -> Rectangle -> Bool
 prop_tourGivesCorrectPositions geo r =
   all (\(u, so, hp, _, _, _) -> con geo u (equatorial so) hp) t
     where
-      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600)
+      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0
       con g u eq hp = let hp' = equatorialToHorizontal g u eq; in
         vmag (cartesian (hp, 1) - cartesian (hp', 1)) < 0.1
 
@@ -243,6 +243,9 @@ spec = describe "HEphem" $
       it "goes over zero" $
         isInInterval 1 (350, 2) `shouldBe` True
 
+    describe "transitPos" $ do
+      it "gives positions verifiable by toHorPosCoord" $
+        property prop_toHorAtTransit
     describe "tour" $ do
       it "gives positions in the rectangle" $
         property prop_tourGivesInRectangle
