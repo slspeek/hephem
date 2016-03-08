@@ -53,6 +53,11 @@ prettyH lz (t, so, HorPos az h, score, tb, ta) =
     tf = formatTime defaultTimeLocale "%X" lt
     lt = utcToLocalTime lz t
 
+numberInput :: Html -> H.AttributeValue -> H.AttributeValue -> H.AttributeValue -> H.AttributeValue -> Html
+numberInput l i mi ma dV = H.p $ H.tr $ do
+                   H.td $ label ! A.for i $ l
+                   H.td $ input ! type_ "number" ! A.min mi ! A.max ma ! A.id i ! name i ! A.value dV ! A.required "true"
+
 formPage :: ServerPart Response
 formPage = msum [ viewForm, processForm ]
  where
@@ -63,43 +68,38 @@ formPage = msum [ viewForm, processForm ]
              H.h1 (toHtml (pack "HEphem Sky Tour Form"))
              form ! action "/tour" ! enctype "multipart/form-data" ! A.method "POST" $
                H.table $ do
-                 H.p $ H.tr $ do
-                   H.td $ label ! A.for "min_mag" $ "Minimum magnitude"
-                   H.td $ input ! type_ "text" ! A.id "min_mag" ! name "min_mag"
-                 H.p $ H.tr $ do
-                   H.td $ label ! A.for "min_az" $ "Minimum azimuth"
-                   H.td $ input ! type_ "text" ! A.id "min_az" ! name "min_az"
-                 H.p $ H.tr $ do
-                   H.td $ label ! A.for "max_az" $ "Maximum azimuth"
-                   H.td $ input ! type_ "text" ! A.id "max_az" ! name "max_az"
-                 H.p $ H.tr $ do
-                   H.td $ label ! A.for "min_al" $ "Minimum height"
-                   H.td $ input ! type_ "text" ! A.id "min_al" ! name "min_al"
-                 H.p $ H.tr $ do
-                   H.td $ label ! A.for "max_al" $ "Maximum height"
-                   H.td $ input ! type_ "text" ! A.id "max_al" ! name "max_al"
-                 H.p $ H.tr $ do
-                   H.td $ label ! A.for "hours" $ "For hours"
-                   H.td $ input ! type_ "text" ! A.id "hours" ! name "hours"
+                 numberInput "Latitude" "lat" "-90" "90" "52"
+                 numberInput "Longitude" "long" "-180" "180" "4"
+                 numberInput "Maximum magnitude" "max_mag" "-5" "30" "9"
+                 numberInput "Minimum azimuth" "min_az" "0" "360" "250"
+                 numberInput "Maximum azimuth" "max_az" "0" "360" "20"
+                 numberInput "Minimum height" "min_al" "0" "90" "30"
+                 numberInput "Maximum height" "max_al" "0" "90" "60"
+                 numberInput "For hours" "hours" "0" "24" "3"
+                 numberInput "Minimum score" "min_score" "0" "100" "80"
                  H.p $ H.tr $
                    H.td $ input ! type_ "submit" ! value "Give a tour"
 
    processForm :: ServerPart Response
    processForm =
        do method POST
-          minMag <- lookText "min_mag"
+          minMag <- lookText "max_mag"
           minAz <- lookText "min_az"
           maxAz <- lookText "max_az"
           minAl <- lookText "min_al"
           maxAl <- lookText "max_al"
-          let r = Rectangle (Degrees $ read (unpack minAz), Degrees $ read (unpack maxAz))
-                    (Degrees $ read (unpack minAl), Degrees $ read (unpack maxAl))
+          minScore <- lookText "min_score"
+          lat <- lookText "lat"
+          long <- lookText "long"
+
+          let geo = GeoLoc (f lat) (f long)
+          let r = Rectangle (f minAz, f maxAz) (f minAl, f maxAl)
           hours <- lookText "hours"
           let h = read $ unpack hours
-
+          let mScore = ru minScore
           tz <- liftIO getCurrentTimeZone
           t <- liftIO getCurrentTime
-          let skyobjects = tour geoAms (read (unpack minMag)) r t (h * 3600) 80
+          let skyobjects = tour geo (read (unpack minMag)) r t (h * 3600) mScore
           ok $ template "HEphem Sky Tour" $ do
             H.h1 "HEphem Sky Tour"
             H.table $ do
@@ -108,7 +108,10 @@ formPage = msum [ viewForm, processForm ]
                 H.th (toHtml (pack "Object"))
                 H.th (toHtml (pack "Azimuth"))
                 H.th (toHtml (pack "Height"))
-                H.th (toHtml (pack "Score (% of maxHeight)"))
-                H.th (toHtml (pack "Time visible before"))
-                H.th (toHtml (pack "Time visible after"))
+                H.th (toHtml (pack "Relative height %"))
+                H.th (toHtml (pack "Visible before"))
+                H.th (toHtml (pack "Visible after"))
               forM_ skyobjects (prettyH tz)
+      where
+        ru = read . unpack
+        f = Degrees . ru

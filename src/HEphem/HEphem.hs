@@ -50,13 +50,16 @@ brightNGCObjects = brightFilter ngcSkyObjects
 brightFilter :: [SkyObject] -> Float -> [SkyObject]
 brightFilter ss m = filter (\s -> magnitude s < m) ss
 
+daySiderealDayRatio :: Double
+daySiderealDayRatio = 24.06570982441908/24
+
 siderealtime :: UTCTime -> Deg
 siderealtime ut = Degrees $ 15 * sidtimeDecimalHours
   where
     -- need the 0.5 to get from modified julian date to reduced julian date --
     d = fracDays ut - fromIntegral time20000101 - 0.5
     time20000101 = toModifiedJulianDay $ fromGregorian 2000 1 1
-    sidtimeDecimalHours = (18.697374558 + 24.06570982441908 * d) `mod'` 24
+    sidtimeDecimalHours = (18.697374558 + daySiderealDayRatio * 24 * d) `mod'` 24
 
 timeFromSidereal :: UTCTime -> Deg -> UTCTime
 timeFromSidereal fromTime sTime =
@@ -64,7 +67,7 @@ timeFromSidereal fromTime sTime =
     where
       st0 = siderealtime fromTime
       d = standardizeDeg $ sTime - st0
-      (Degrees dt) = 24 * 10 * (24/24.06570982441908) * d
+      (Degrees dt) = 24 * 10 *  d  * (Degrees $ (1/ daySiderealDayRatio))
 
 localSiderealtime :: GeoLoc -> UTCTime -> Deg
 localSiderealtime (GeoLoc _ long) ut = standardizeDeg $ siderealtime ut + long
@@ -290,10 +293,12 @@ bestPosition geo r t d so =
      do
        vr <- createViewingReport geo r (equatorial so)
        ((lst, hp), score, tb, ta) <- bestPosition2 geo so (lst0, lst1) vr
-       return (localSiderealtimeToUtcTime geo t lst, so, hp, score, tb, ta)
+       return (localSiderealtimeToUtcTime geo t lst, so, hp, score, toUTCDiff tb, toUTCDiff ta)
   where
     lst0 = localSiderealtime geo t
     lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)
+    toUTCDiff :: Deg -> Deg
+    toUTCDiff sidD =  sidD / Degrees daySiderealDayRatio 
 
 bestPosition2:: GeoLoc ->  SkyObject -> Interval ->  ViewingReport -> Maybe ((Deg, HorPos), Deg, Deg, Deg)
 bestPosition2 geo so (lst0,lst1) vr = hmax
