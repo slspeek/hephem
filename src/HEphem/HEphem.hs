@@ -67,7 +67,7 @@ timeFromSidereal fromTime sTime =
     where
       st0 = siderealtime fromTime
       d = standardizeDeg $ sTime - st0
-      (Degrees dt) = 24 * 10 *  d  * (Degrees (1/ daySiderealDayRatio))
+      (Degrees dt) = 24 * 10 *  d  * Degrees (1/ daySiderealDayRatio)
 
 localSiderealtime :: GeoLoc -> UTCTime -> Deg
 localSiderealtime (GeoLoc _ long) ut = standardizeDeg $ siderealtime ut + long
@@ -207,7 +207,6 @@ intersectHeight g eq a =
     let ps = HorPos az a
     return (localSiderealtimeFromPos g eq ps, ps)
 
-
 helper :: [(a, Bool)] -> [(a, Bool)]
 helper l =
    case l of [] -> []
@@ -216,7 +215,6 @@ helper l =
 -- Want for any SkyObject, geo, viewing rectangle
 -- * passages if any
 -- * min height and max height
-
 
 data Direction = DTop|DBottom|DLeft|DRight
   deriving (Show, Eq)
@@ -308,13 +306,13 @@ bestPosition2 geo so (lst0,lst1) vr = hmax
     score v x = let minH = snd (v^.vMinHeight)^.hAltitude ;
                       maxH = snd (v^.vMaxHeight)^.hAltitude
                         in 100 * (x - minH)/ (maxH - minH)
-    hasAbsolute = filter (isInInterval (fst (vr^.vMaxHeight))) interss
+    transitInterval = filter (isInInterval (fst (vr^.vMaxHeight))) interss
     borderPoss = map (\(s0, s1) -> ((s0, toHorPosCoord s0 geo eq), (s1, toHorPosCoord s1 geo eq))) interss
     m = maximumBy $ comparing snd
     highestInterval = fst $ maximumBy (comparing snd) (map (\z -> (z, m z)) borderPoss)
     maxAtBegin x = snd (fst x) >= snd (snd x)
     hDuration = fst (snd highestInterval) - fst (fst highestInterval)
-    hmax = if null hasAbsolute
+    hmax = if null transitInterval
       then if not (null interss)
         then
           if maxAtBegin highestInterval
