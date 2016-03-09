@@ -2,12 +2,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
-import           Data.Angle
-
 import           Control.Monad
 import           Control.Monad.Trans         (liftIO)
+import           Data.Angle
+import           Data.Maybe
 import           Data.Text                   (Text)
 import           Data.Text.Lazy              (pack, unpack)
+import qualified Data.Text.Lazy              as L
 import           Data.Time
 import           Happstack.Lite
 import           HEphem.Data
@@ -19,6 +20,7 @@ import           Text.Blaze.Html5.Attributes (action, enctype, href, name,
                                               type_, value)
 import qualified Text.Blaze.Html5.Attributes as A
 import           Text.Printf
+import           Text.Read.HT
 
 main :: IO ()
 main = serve Nothing myApp
@@ -28,6 +30,7 @@ myApp = msum
  [
    dir "tour" formPage
  ]
+
 template :: Text -> Html -> Response
 template title body = toResponse $
  H.html $ do
@@ -57,6 +60,26 @@ numberInput :: Html -> H.AttributeValue -> H.AttributeValue -> H.AttributeValue 
 numberInput l i mi ma dV = H.p $ H.tr $ do
                    H.td $ label ! A.for i $ l
                    H.td $ input ! type_ "number" ! A.min mi ! A.max ma ! A.id i ! name i ! A.value dV ! A.required "true"
+
+parseRect :: L.Text -> L.Text -> L.Text -> L.Text -> Maybe Rectangle
+parseRect s0 s1 s2 s3  =
+  do
+     d0 <- f s0
+     d1 <- f s1
+     d2 <- f s2
+     d3 <- f s3
+     return $ Rectangle (d0, d1) (d2, d3)
+  where
+    f s = Degrees <$> maybeRead (unpack s)
+
+parseGeo :: L.Text -> L.Text -> Maybe GeoLoc
+parseGeo s0 s1 =
+  do
+     d0 <- f s0
+     d1 <- f s1
+     return $ GeoLoc d0 d1
+  where
+    f s = Degrees <$> maybeRead (unpack s)
 
 formPage :: ServerPart Response
 formPage = msum [ viewForm, processForm ]
@@ -91,15 +114,32 @@ formPage = msum [ viewForm, processForm ]
           minScore <- lookText "min_score"
           lat <- lookText "lat"
           long <- lookText "long"
-
-          let geo = GeoLoc (f lat) (f long)
-          let r = Rectangle (f minAz, f maxAz) (f minAl, f maxAl)
           hours <- lookText "hours"
-          let h = read $ unpack hours
-          let mScore = ru minScore
+
+          let mr = parseRect minAz maxAz minAl maxAl
+          guard $ isJust mr
+
+          let mgeo = parseGeo lat long
+          guard $ isJust mgeo
+
+          let mh = maybeRead $ unpack hours
+          guard $ isJust mh
+
+          let mScore = maybeRead $ unpack minScore
+          guard $ isJust mScore
+
+          let mMinMag = maybeRead $ unpack minMag
+          guard $ isJust mMinMag
+
           tz <- liftIO getCurrentTimeZone
           t <- liftIO getCurrentTime
-          let skyobjects = tour geo (read (unpack minMag)) r t (h * 3600) mScore
+
+          let skyobjects = tour (fromJust mgeo)
+                                  (fromJust mMinMag)
+                                    (fromJust mr)
+                                      t
+                                        (fromJust mh * 3600)
+                                          (fromJust mScore)
           ok $ template "HEphem Sky Tour" $ do
             H.h1 "HEphem Sky Tour"
             H.table $ do
@@ -112,6 +152,3 @@ formPage = msum [ viewForm, processForm ]
                 H.th (toHtml (pack "Visible before"))
                 H.th (toHtml (pack "Visible after"))
               forM_ skyobjects (prettyH tz)
-      where
-        ru = read . unpack
-        f = Degrees . ru

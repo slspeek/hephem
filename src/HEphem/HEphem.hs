@@ -67,7 +67,7 @@ timeFromSidereal fromTime sTime =
     where
       st0 = siderealtime fromTime
       d = standardizeDeg $ sTime - st0
-      (Degrees dt) = 24 * 10 *  d  * (Degrees $ (1/ daySiderealDayRatio))
+      (Degrees dt) = 24 * 10 *  d  * (Degrees (1/ daySiderealDayRatio))
 
 localSiderealtime :: GeoLoc -> UTCTime -> Deg
 localSiderealtime (GeoLoc _ long) ut = standardizeDeg $ siderealtime ut + long
@@ -298,7 +298,7 @@ bestPosition geo r t d so =
     lst0 = localSiderealtime geo t
     lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)
     toUTCDiff :: Deg -> Deg
-    toUTCDiff sidD =  sidD / Degrees daySiderealDayRatio 
+    toUTCDiff sidD =  sidD / Degrees daySiderealDayRatio
 
 bestPosition2:: GeoLoc ->  SkyObject -> Interval ->  ViewingReport -> Maybe ((Deg, HorPos), Deg, Deg, Deg)
 bestPosition2 geo so (lst0,lst1) vr = hmax

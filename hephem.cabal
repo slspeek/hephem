@@ -10,7 +10,7 @@ name:                hephem
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.8.1
+version:             0.8.2
 
 -- A short (one-line) description of the package.
 synopsis:            Learning project calculating star positions
@@ -76,6 +76,7 @@ library
       ,QuickCheck
       ,hspec >= 2.2.0
       ,hspec-contrib >= 0.3.0
+      -- ,utility-ht == 0.0.11
   default-language:    Haskell2010
 
 executable hephem
@@ -123,6 +124,7 @@ executable hephemserver
                     ,text == 1.2.1.3
                     ,blaze-html == 0.8.1.1
                     ,mtl == 2.2.1
+                    ,utility-ht == 0.0.11
                     ,QuickCheck
 
 	-- Directories containing source files.
