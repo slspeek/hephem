@@ -131,20 +131,20 @@ prop_intervalRightBorder (t0, t1) = isInInterval t1 (t0, t1)
 
 prop_tourGivesInRectangle:: GeoLoc -> Rectangle -> Bool
 prop_tourGivesInRectangle geo r =
-  all (\(u, so, hp, _, _, _) -> con geo u (equatorial so) hp) t
+  all (\(Report so u hp _ _ _) -> con geo u (equatorial so) hp) t
     where
-      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0
+      t = tour (ViewOps geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0 0)
       con _ _ _ hp = viewingRestriction r hp
-        || ((isInInterval (hp^.hAzimuth) (r^.rAzimuth))
+        || (isInInterval (hp^.hAzimuth) (r^.rAzimuth)
           && ((hp ^.hAltitude) =~ fst(r^.rAltitude) || (hp ^.hAltitude) =~ snd(r^.rAltitude) ))
-        || ((isInInterval (hp^.hAltitude) (r^.rAltitude))
+        || (isInInterval (hp^.hAltitude) (r^.rAltitude)
           && ((hp ^.hAzimuth) =~ fst(r^.rAzimuth) || (hp ^.hAzimuth) =~ snd(r^.rAzimuth) ))
 
 prop_tourGivesCorrectPositions:: GeoLoc -> Rectangle -> Bool
 prop_tourGivesCorrectPositions geo r =
-  all (\(u, so, hp, _, _, _) -> con geo u (equatorial so) hp) t
+  all (\(Report so u hp _ _ _) -> con geo u (equatorial so) hp) t
     where
-      t = tour geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0
+      t = tour (ViewOps geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0 0)
       con g u eq hp = let hp' = equatorialToHorizontal g u eq; in
         vmag (cartesian (hp, 1) - cartesian (hp', 1)) < 0.1
 
@@ -155,7 +155,7 @@ prop_toHorAtTransit g eq = toHorPosCoord t g eq =~ tp
     t = localSiderealtimeFromPos g eq tp
 
 spec :: SpecWith ()
-spec = describe "HEphem" $
+spec = describe "HEphem" $ do
   describe "siderealtime" $ do
     it "siderealtime at 2015 10 19" $ do
       let utc = UTCTime { utctDay = fromGregorian 2015 10 19, utctDayTime = secondsToDiffTime 0 }
@@ -165,87 +165,87 @@ spec = describe "HEphem" $
       let utc = UTCTime { utctDay = fromGregorian 2015 10 1, utctDayTime = secondsToDiffTime 0 }
       (abs (fromHMS 0 37 38 - siderealtime utc) < 1.0e-2) @?= True
 
-    describe "equatorialToHorizontal for a series of test values" $
-      fromHUnitTest testEquatorialToHorizontal
+  describe "equatorialToHorizontal for a series of test values" $
+    fromHUnitTest testEquatorialToHorizontal
 
-    describe "horizontalToEquatorial" $ do
-      it "is left inverse of equatorialToHorizontal" $ property
-        prop_horToEqAfterEqToHor;
+  describe "horizontalToEquatorial" $ do
+    it "is left inverse of equatorialToHorizontal" $ property
+      prop_horToEqAfterEqToHor;
 
-      it "is right inverse of equatorialToHorizontal" $ property
-        prop_eqToHorAfterHorToEq;
+    it "is right inverse of equatorialToHorizontal" $ property
+      prop_eqToHorAfterHorToEq;
 
-    describe "findNear" $
-      it "finds a skyobject on its own coords" $ property
-        prop_FindNear
+  describe "findNear" $
+    it "finds a skyobject on its own coords" $ property
+      prop_FindNear
 
-    describe "timeInterval" $
-      it "gives [0, 10, 20] for t = 0, d = 20, n = 10" $
-        timeInterval 0 20 10 `shouldBe` [0, 10, 20]
+  describe "timeInterval" $
+    it "gives [0, 10, 20] for t = 0, d = 20, n = 10" $
+      timeInterval 0 20 10 `shouldBe` [0, 10, 20]
 
-    describe "localSiderealtimeToUtcTime" $
-      it "gives next moment with lst" $
-        property prop_localSiderealtimeToUtcTime
+  describe "localSiderealtimeToUtcTime" $
+    it "gives next moment with lst" $
+      property prop_localSiderealtimeToUtcTime
 
-    describe "heightForAzimuth" $
-      it "predict a given horpos" $
-        property prop_heightForAzimuth
+  describe "heightForAzimuth" $
+    it "predict a given horpos" $
+      property prop_heightForAzimuth
 
-    describe "azimuthForHeight" $
-      it "predict a given horpos" $
-        property prop_azimuthForHeight
+  describe "azimuthForHeight" $
+    it "predict a given horpos" $
+      property prop_azimuthForHeight
 
-    describe "solveTrigonom" $
-      it "calculates solutions" $
-        property prop_SolveTrigonom
+  describe "solveTrigonom" $
+    it "calculates solutions" $
+      property prop_SolveTrigonom
 
-    describe "localSiderealtimeFromPos" $
-      it "at the time returned the star is at that position" $
-        property prop_localSiderealtimeFromPos
+  describe "localSiderealtimeFromPos" $
+    it "at the time returned the star is at that position" $
+      property prop_localSiderealtimeFromPos
 
-    describe "intersectHeight" $
-      it "gives lst and pos inline with toHorPosCoord" $
-        property prop_intersectHeight
+  describe "intersectHeight" $
+    it "gives lst and pos inline with toHorPosCoord" $
+      property prop_intersectHeight
 
-    describe "intersectAzimuth" $
-      it "gives lst and pos inline with toHorPosCoord" $
-        property prop_intersectAzimuth
+  describe "intersectAzimuth" $
+    it "gives lst and pos inline with toHorPosCoord" $
+      property prop_intersectAzimuth
 
-    describe "intersectInterval" $ do
-      it "should work for ordered intervals" $ do
-          intersectInterval (1,2) (3,4) `shouldBe` [];
-          intersectInterval (1,2) (1,4) `shouldBe` [(1,2)]
-      it "should work for ordered intervals 2" $ do
-          intersectInterval (10,20) (0,12) `shouldBe` [(10,12)]
-          intersectInterval (10,20) (15,30) `shouldBe` [(15,20)]
-      it "should work for left included in right" $
-          intersectInterval (160,175) (83,337) `shouldBe` [(160,175)]
-      it "should work for reverse ordered intervals" $
-        intersectInterval (350,20) (359,4) `shouldBe` [(359,4)]
-      it "should work for reverse ordered intervals 2" $
-        intersectInterval (350,20) (1,4) `shouldBe` [(1,4)]
-      it "should work for reverse ordered intervals 3" $
-        intersectInterval (10,20) (320,14) `shouldBe` [(10, 14)]
-      it "should work for reverse ordered intervals 4" $
-        intersectInterval (90,180) (170,100) `shouldBe` [(170,180), (90, 100)]
-      it "should work for reverse ordered intervals 5" $
-        intersectInterval (4, 2) (250,10) `shouldBe` [(250,2), (4, 10)]
-      it "should work for reverse ordered intervals 6" $
-        intersectInterval (8, 260) (250,10) `shouldBe` [(250, 260), (8,10)]
+  describe "intersectInterval" $ do
+    it "should work for ordered intervals" $ do
+        intersectInterval (1,2) (3,4) `shouldBe` [];
+        intersectInterval (1,2) (1,4) `shouldBe` [(1,2)]
+    it "should work for ordered intervals 2" $ do
+        intersectInterval (10,20) (0,12) `shouldBe` [(10,12)]
+        intersectInterval (10,20) (15,30) `shouldBe` [(15,20)]
+    it "should work for left included in right" $
+        intersectInterval (160,175) (83,337) `shouldBe` [(160,175)]
+    it "should work for reverse ordered intervals" $
+      intersectInterval (350,20) (359,4) `shouldBe` [(359,4)]
+    it "should work for reverse ordered intervals 2" $
+      intersectInterval (350,20) (1,4) `shouldBe` [(1,4)]
+    it "should work for reverse ordered intervals 3" $
+      intersectInterval (10,20) (320,14) `shouldBe` [(10, 14)]
+    it "should work for reverse ordered intervals 4" $
+      intersectInterval (90,180) (170,100) `shouldBe` [(170,180), (90, 100)]
+    it "should work for reverse ordered intervals 5" $
+      intersectInterval (4, 2) (250,10) `shouldBe` [(250,2), (4, 10)]
+    it "should work for reverse ordered intervals 6" $
+      intersectInterval (8, 260) (250,10) `shouldBe` [(250, 260), (8,10)]
 
-    describe "isInInterval" $ do
-      it "includes left border" $
-        property prop_intervalLeftBorder
-      it "includes right border" $
-        property prop_intervalRightBorder
-      it "goes over zero" $
-        isInInterval 1 (350, 2) `shouldBe` True
+  describe "isInInterval" $ do
+    it "includes left border" $
+      property prop_intervalLeftBorder
+    it "includes right border" $
+      property prop_intervalRightBorder
+    it "goes over zero" $
+      isInInterval 1 (350, 2) `shouldBe` True
 
-    describe "transitPos" $ do
-      it "gives positions verifiable by toHorPosCoord" $
-        property prop_toHorAtTransit
-    describe "tour" $ do
-      it "gives positions in the rectangle" $
-        property prop_tourGivesInRectangle
-      it "gives correct positions" $
-        property prop_tourGivesCorrectPositions
+  describe "transitPos" $
+    it "gives positions verifiable by toHorPosCoord" $
+      property prop_toHorAtTransit
+  describe "tour" $ do
+    it "gives positions in the rectangle" $
+      property prop_tourGivesInRectangle
+    it "gives correct positions" $
+      property prop_tourGivesCorrectPositions

@@ -41,15 +41,15 @@ template title body = toResponse $
      p $ a ! href "/tour" $ "back home"
      p $ H.h3 $ a ! href "http://github.com/slspeek/hephem" $ "HEphem source code"
 
-prettyH :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> Html
-prettyH lz (t, so, HorPos az h, score, tb, ta) =
+prettyH :: TimeZone -> Report -> Html
+prettyH lz (Report so t  (HorPos az h) score tb ta) =
    H.html $
    H.tr $ do
      H.td (toHtml tf)
      H.td (toHtml (description so))
      H.td (toHtml (printDeg az))
      H.td (toHtml (printDeg h))
-     H.td (toHtml $ pack (printf "%.2f" (undeg score)))
+     H.td (toHtml $ pack (printf "%.2f" score))
      H.td (toHtml (printDegAsTime tb))
      H.td (toHtml (printDegAsTime ta))
   where
@@ -134,12 +134,13 @@ formPage = msum [ viewForm, processForm ]
           tz <- liftIO getCurrentTimeZone
           t <- liftIO getCurrentTime
 
-          let skyobjects = tour (fromJust mgeo)
+          let skyobjects = tour (ViewOps (fromJust mgeo)
                                   (fromJust mMinMag)
                                     (fromJust mr)
                                       t
                                         (fromJust mh * 3600)
-                                          (fromJust mScore)
+                                          600
+                                          (fromJust mScore))
           ok $ template "HEphem Sky Tour" $ do
             H.h1 "HEphem Sky Tour"
             H.table $ do

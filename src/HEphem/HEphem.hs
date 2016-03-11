@@ -228,6 +228,32 @@ data ViewingReport =
 
 makeLenses ''ViewingReport
 
+data ViewOps =
+  ViewOps{
+  _oGeo        :: GeoLoc,
+  _oMag        :: Float,
+  _oRectangle  :: Rectangle,
+  _oStart      :: UTCTime,
+  _oDuration   :: Int,
+  _oMinObsTime :: Int,
+  _oMinScore   :: Int
+} deriving (Show)
+
+makeLenses ''ViewOps
+
+data Report =
+  Report{
+  _rObject :: SkyObject,
+  _rTime   :: UTCTime,
+  _rHorPos :: HorPos,
+  _rScore  :: Double,
+  _rBefore :: Deg,
+  _rAfter  :: Deg
+  -- _rLST    :: Deg
+}
+
+makeLenses ''Report
+
 createViewingReport :: GeoLoc -> Rectangle -> EqPos -> Maybe ViewingReport
 createViewingReport geo r eq = if noAnswer then Nothing else
                                           Just $ ViewingReport ps minh maxh
@@ -247,15 +273,15 @@ createViewingReport geo r eq = if noAnswer then Nothing else
       let lp = lowestPos geo eq in
         if viewingRestriction r lp
           then (localSiderealtimeFromPos geo eq lp, lp)
-          else minimumBy (comparing (\(_, HorPos _ al) -> al)) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
-
+          else minimumBy (comparing snd)
+                $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
 
     maxh =
       let tp = transitPos geo eq in
         if viewingRestriction r tp
           then (localSiderealtimeFromPos geo eq tp, tp)
-          else maximumBy (comparing(\(_, HorPos _ al) -> al)) $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
-
+          else maximumBy (comparing snd)
+                $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
 
     trs =  helper $ zip rs (fmap (\(s,_,_) -> laterIn s) rs)
     testPos s = toHorPosCoord  (s + 0.001) geo eq
@@ -272,76 +298,110 @@ joinAdjacentIntervals ((t0, t1):(u0, u1):xs) = if standardizeDeg (t1 - u0) == 0 
 joinAdjacentIntervals [(t0, t1)] = [(t0, t1)]
 
 intersectInterval :: Interval -> Interval -> [Interval]
-intersectInterval (t0,t1) (u0,u1) | t0 <= t1 && u0 <= u1 = let maxStart = max t0 u0; minEnd = min t1 u1;
+intersectInterval (t0,t1) (u0,u1) | t0 <= t1 && u0 <= u1 =
+                                    let maxStart = max t0 u0; minEnd = min t1 u1;
                                     in [(maxStart, minEnd) | maxStart <= minEnd]
                                   | t0 > t1 && u0 < u1 =
-                                    joinAdjacentIntervals (intersectInterval (t0, 360) (u0, u1) ++ intersectInterval (0, t1) (u0, u1))
+                                    joinAdjacentIntervals
+                                     (intersectInterval (t0, 360) (u0, u1)
+                                      ++ intersectInterval (0, t1) (u0, u1))
                                   | t0 > t1 && u0 > u1 =
-                                    joinAdjacentIntervals (intersectInterval (t0, 360) (u0, 360) ++
-                                      intersectInterval (0, t1) (0, u1) ++
-                                        intersectInterval (0, t1) (u0, 360) ++
-                                          intersectInterval (t0, 360) (0, u1))
-
+                                    joinAdjacentIntervals
+                                      (intersectInterval (t0, 360) (u0, 360)
+                                        ++ intersectInterval (0, t1) (0, u1)
+                                          ++ intersectInterval (0, t1) (u0, 360)
+                                           ++ intersectInterval (t0, 360) (0, u1))
                                   | t0 < t1 && u0 > u1 =
-                                    joinAdjacentIntervals (intersectInterval (t0, t1) (u0, 360) ++ intersectInterval (t0, t1) (0, u1))
+                                    joinAdjacentIntervals
+                                     (intersectInterval (t0, t1) (u0, 360)
+                                      ++ intersectInterval (t0, t1) (0, u1))
                                   | otherwise = []
 
-bestPosition:: GeoLoc -> Rectangle -> UTCTime -> Integer -> SkyObject -> Maybe(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)
-bestPosition geo r t d so =
+bestPosition:: ViewOps -> SkyObject-> Maybe Report
+bestPosition ops so =
      do
-       vr <- createViewingReport geo r (equatorial so)
-       ((lst, hp), score, tb, ta) <- bestPosition2 geo so (lst0, lst1) vr
-       return (localSiderealtimeToUtcTime geo t lst, so, hp, score, toUTCDiff tb, toUTCDiff ta)
+       vr <- createViewingReport geo (ops^.oRectangle) (equatorial so)
+       ((lst, hp), score, tb, ta) <- bestPosition2 ops (equatorial so) (lst0, lst1) vr
+       return $ Report
+          so
+          (localSiderealtimeToUtcTime geo t lst)
+            hp
+              (undeg score)
+                (toUTCDiff tb)
+                  (toUTCDiff ta)
   where
+    geo = ops^.oGeo
+    t = ops^.oStart
     lst0 = localSiderealtime geo t
-    lst1 = localSiderealtime geo (addUTCTime (fromInteger d) t)
+    lst1 = localSiderealtime geo (addUTCTime (fromIntegral (ops^.oDuration)) t)
     toUTCDiff :: Deg -> Deg
     toUTCDiff sidD =  sidD / Degrees daySiderealDayRatio
 
-bestPosition2:: GeoLoc ->  SkyObject -> Interval ->  ViewingReport -> Maybe ((Deg, HorPos), Deg, Deg, Deg)
-bestPosition2 geo so (lst0,lst1) vr = hmax
+bestPosition2:: ViewOps ->  EqPos -> Interval ->  ViewingReport -> Maybe ((Deg, HorPos), Deg, Deg, Deg)
+bestPosition2 ops eq (lst0,lst1) vr = hmax
   where
+    score x = let minH = snd (vr^.vMinHeight)^.hAltitude ;
+                    maxH = snd (vr^.vMaxHeight)^.hAltitude
+                    in 100 * (x - minH)/ (maxH - minH)
+
     interss = concatMap (\((x, _, _), (y, _, _)) -> intersectInterval (lst0, lst1) (x, y)) (vr^.vPassages)
-    eq = equatorial so
-    score v x = let minH = snd (v^.vMinHeight)^.hAltitude ;
-                      maxH = snd (v^.vMaxHeight)^.hAltitude
-                        in 100 * (x - minH)/ (maxH - minH)
-    transitInterval = filter (isInInterval (fst (vr^.vMaxHeight))) interss
-    borderPoss = map (\(s0, s1) -> ((s0, toHorPosCoord s0 geo eq), (s1, toHorPosCoord s1 geo eq))) interss
+
+    hor t = toHorPosCoord t (ops^.oGeo) eq
+    borderPoss = map (\(s0, s1) -> ((s0, hor s0), (s1, hor s1))) interss
+
     m = maximumBy $ comparing snd
+
     highestInterval = fst $ maximumBy (comparing snd) (map (\z -> (z, m z)) borderPoss)
+
+    transitInterval = filter (isInInterval (fst (vr^.vMaxHeight))) interss
+
     maxAtBegin x = snd (fst x) >= snd (snd x)
     hDuration = fst (snd highestInterval) - fst (fst highestInterval)
+    g ((l, hp), s , tb, ta) =
+      let watchingTime = min (tb - ta) (Degrees daySiderealDayRatio * 15 * fromIntegral (ops^.oMinObsTime) /3600);
+          lst = l - (watchingTime - ta)
+          res = (lst, hor lst)
+      in if ta < watchingTime
+        then
+          (res, score (hor lst ^.hAltitude), tb - (watchingTime - ta), ta + watchingTime)
+        else
+          ((l, hp), s , tb, ta)
+
     hmax = if null transitInterval
       then if not (null interss)
         then
           if maxAtBegin highestInterval
             then
-              return (fst  highestInterval, score vr (snd (fst highestInterval)^.hAltitude),
-                  0, hDuration)
+              return $ g (fst highestInterval, score (snd (fst highestInterval)^.hAltitude)
+                , 0, hDuration)
             else
-              return (snd highestInterval, score vr (snd (snd highestInterval)^.hAltitude) , hDuration, 0)
+              return $ g (snd highestInterval, score (snd (snd highestInterval)^.hAltitude)
+                , hDuration, 0)
           else Nothing
-      else return (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst highestInterval)),
+      else
+        return $ g (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst highestInterval)),
                                  standardizeDeg (fst (snd highestInterval) - fst (vr^.vMaxHeight)))
 
-tour :: GeoLoc -> Float -> Rectangle -> UTCTime -> Integer -> Double -> [(UTCTime, SkyObject, HorPos, Deg, Deg, Deg)]
-tour g m r t d score = filter (\(_, _, _, s, _, _) -> undeg s > score) . sortWith (\(s,_,_,_,_,_)->s) $ mapMaybe (bestPosition g r t d) objects
+
+tour :: ViewOps -> [Report]
+tour ops =
+  filter (\report -> (report^.rScore) > fromIntegral (ops^.oMinScore))
+   . sortWith (^.rTime) $ mapMaybe (bestPosition ops) objects
     where
-      objects = brightSkyObjects m
+      objects = brightSkyObjects (ops^.oMag)
 
-pretty :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> String
-pretty lz (t, so, HorPos a h, score, tb, ta) =
-  printf "%s  %s\tAzi: %s\tAlt: %s\tScore: %.2f\tBefore: %s After: %s"
-    tf (description so) (printDeg a) (printDeg h)
-     (undeg score) (printDegAsTime tb) (printDegAsTime ta)
-  where
-    tf = formatTime defaultTimeLocale "%X" lt
-    lt = utcToLocalTime lz t
-
-viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Double -> IO ()
-viewTourNow g m r d score =
-  do
-    t <- getCurrentTime
-    lz <- getCurrentTimeZone
-    mapM_ (putStrLn . pretty lz)  $ tour g m r t d score
+-- pretty :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> String
+-- pretty lz (t, so, HorPos a h, score, tb, ta) =
+--   printf "%s  %s\tAzi: %s\tAlt: %s\tScore: %.2f\tBefore: %s After: %s"
+--     tf (description so) (printDeg a) (printDeg h)
+--      (undeg score) (printDegAsTime tb) (printDegAsTime ta)
+--   where
+--     tf = formatTime defaultTimeLocale "%X" lt
+--     lt = utcToLocalTime lz t
+--
+-- viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Double -> IO ()
+-- viewTourNow g m r d score =
+--   do
+--     t <- getCurrentTime
+--     lz <- getCurrentTimeZone
+--     mapM_ (putStrLn . pretty lz)  $ tour g m r t d score

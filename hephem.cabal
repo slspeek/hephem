@@ -10,7 +10,7 @@ name:                hephem
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.8.2
+version:             0.8.3
 
 -- A short (one-line) description of the package.
 synopsis:            Learning project calculating star positions
@@ -120,7 +120,9 @@ executable hephemserver
                     ,AC-Vector == 2.3.2
                     ,AC-Vector-Fancy == 2.4.0
                     ,AC-Angle >= 1.0
+                    ,transformers == 0.4.2.0
                     ,happstack-lite == 7.3.6
+                    ,happstack-server == 7.4.6.1
                     ,text == 1.2.1.3
                     ,blaze-html == 0.8.1.1
                     ,mtl == 2.2.1
