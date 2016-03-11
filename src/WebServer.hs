@@ -3,22 +3,24 @@
 module Main where
 
 import           Control.Monad
-import           Control.Monad.Trans         (liftIO)
+import           Control.Monad.Trans              (liftIO)
+import           Control.Monad.Trans.Class        (lift)
+import           Control.Monad.Trans.Maybe
 import           Data.Angle
 import           Data.Maybe
-import           Data.Text                   (Text)
-import           Data.Text.Lazy              (pack, unpack)
-import qualified Data.Text.Lazy              as L
+import           Data.Text                        (Text)
+import           Data.Text.Lazy                   (pack, unpack)
 import           Data.Time
 import           Happstack.Lite
+import           Happstack.Server.Internal.Monads (ServerPartT)
 import           HEphem.Data
 import           HEphem.HEphem
-import           Text.Blaze.Html5            (Html, a, form, input, label, p,
-                                              toHtml, (!))
-import qualified Text.Blaze.Html5            as H
-import           Text.Blaze.Html5.Attributes (action, enctype, href, name,
-                                              type_, value)
-import qualified Text.Blaze.Html5.Attributes as A
+import           Text.Blaze.Html5                 (Html, a, form, input, label,
+                                                   p, toHtml, (!))
+import qualified Text.Blaze.Html5                 as H
+import           Text.Blaze.Html5.Attributes      (action, enctype, href, name,
+                                                   type_, value)
+import qualified Text.Blaze.Html5.Attributes      as A
 import           Text.Printf
 import           Text.Read.HT
 
@@ -61,25 +63,40 @@ numberInput l i mi ma dV = H.p $ H.tr $ do
                    H.td $ label ! A.for i $ l
                    H.td $ input ! type_ "number" ! A.min mi ! A.max ma ! A.id i ! name i ! A.value dV ! A.required "true"
 
-parseRect :: L.Text -> L.Text -> L.Text -> L.Text -> Maybe Rectangle
-parseRect s0 s1 s2 s3  =
-  do
-     d0 <- f s0
-     d1 <- f s1
-     d2 <- f s2
-     d3 <- f s3
-     return $ Rectangle (d0, d1) (d2, d3)
-  where
-    f s = Degrees <$> maybeRead (unpack s)
+parseDeg :: forall x. Read x => String -> MaybeT (ServerPartT IO) (Degrees x)
+parseDeg s = Degrees <$> parse s
 
-parseGeo :: L.Text -> L.Text -> Maybe GeoLoc
-parseGeo s0 s1 =
-  do
-     d0 <- f s0
-     d1 <- f s1
-     return $ GeoLoc d0 d1
+parse :: forall x. Read x => String -> MaybeT (ServerPartT IO) x
+parse s = lift  (lookText s) >>= f
   where
-    f s = Degrees <$> maybeRead (unpack s)
+    f t = MaybeT . pure $ maybeRead (unpack t)
+
+parseRect ::  MaybeT (ServerPartT IO) Rectangle
+parseRect  =
+  do
+     minAz <- parseDeg "min_az"
+     maxAz <- parseDeg "max_az";
+     minAl <- parseDeg "min_al";
+     maxAl <- parseDeg "max_al";
+     return $ Rectangle (minAz, maxAz) (minAl, maxAl)
+
+parseGeo :: MaybeT (ServerPartT IO) GeoLoc
+parseGeo =
+  do
+    lat <- parseDeg "lat"
+    long <- parseDeg "long"
+    return $ GeoLoc lat long
+
+parseViewOps :: MaybeT (ServerPartT IO) ViewOps
+parseViewOps =
+  do
+    minMag <- parse "max_mag"
+    minScore <- parse "min_score"
+    hours <- parse "hours"
+    r <- parseRect
+    geo <- parseGeo
+    t <- liftIO getCurrentTime
+    return $ ViewOps geo minMag r t (3600 * hours) 600 minScore
 
 formPage :: ServerPart Response
 formPage = msum [ viewForm, processForm ]
@@ -106,41 +123,9 @@ formPage = msum [ viewForm, processForm ]
    processForm :: ServerPart Response
    processForm =
        do method POST
-          minMag <- lookText "max_mag"
-          minAz <- lookText "min_az"
-          maxAz <- lookText "max_az"
-          minAl <- lookText "min_al"
-          maxAl <- lookText "max_al"
-          minScore <- lookText "min_score"
-          lat <- lookText "lat"
-          long <- lookText "long"
-          hours <- lookText "hours"
-
-          let mr = parseRect minAz maxAz minAl maxAl
-          guard $ isJust mr
-
-          let mgeo = parseGeo lat long
-          guard $ isJust mgeo
-
-          let mh = maybeRead $ unpack hours
-          guard $ isJust mh
-
-          let mScore = maybeRead $ unpack minScore
-          guard $ isJust mScore
-
-          let mMinMag = maybeRead $ unpack minMag
-          guard $ isJust mMinMag
-
+          mOps <- runMaybeT parseViewOps
           tz <- liftIO getCurrentTimeZone
-          t <- liftIO getCurrentTime
-
-          let skyobjects = tour (ViewOps (fromJust mgeo)
-                                  (fromJust mMinMag)
-                                    (fromJust mr)
-                                      t
-                                        (fromJust mh * 3600)
-                                          600
-                                          (fromJust mScore))
+          let skyobjects = tour $ fromJust mOps
           ok $ template "HEphem Sky Tour" $ do
             H.h1 "HEphem Sky Tour"
             H.table $ do

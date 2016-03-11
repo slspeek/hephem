@@ -337,6 +337,7 @@ bestPosition ops so =
     toUTCDiff :: Deg -> Deg
     toUTCDiff sidD =  sidD / Degrees daySiderealDayRatio
 
+
 bestPosition2:: ViewOps ->  EqPos -> Interval ->  ViewingReport -> Maybe ((Deg, HorPos), Deg, Deg, Deg)
 bestPosition2 ops eq (lst0,lst1) vr = hmax
   where
@@ -357,30 +358,32 @@ bestPosition2 ops eq (lst0,lst1) vr = hmax
 
     maxAtBegin x = snd (fst x) >= snd (snd x)
     hDuration = fst (snd highestInterval) - fst (fst highestInterval)
-    g ((l, hp), s , tb, ta) =
-      let watchingTime = min (tb - ta) (Degrees daySiderealDayRatio * 15 * fromIntegral (ops^.oMinObsTime) /3600);
-          lst = l - (watchingTime - ta)
-          res = (lst, hor lst)
-      in if ta < watchingTime
-        then
-          (res, score (hor lst ^.hAltitude), tb - (watchingTime - ta), ta + watchingTime)
-        else
-          ((l, hp), s , tb, ta)
 
     hmax = if null transitInterval
       then if not (null interss)
         then
           if maxAtBegin highestInterval
             then
-              return $ g (fst highestInterval, score (snd (fst highestInterval)^.hAltitude)
+              return $ correctForMinObsTime (fst highestInterval, score (snd (fst highestInterval)^.hAltitude)
                 , 0, hDuration)
             else
-              return $ g (snd highestInterval, score (snd (snd highestInterval)^.hAltitude)
+              return $ correctForMinObsTime (snd highestInterval, score (snd (snd highestInterval)^.hAltitude)
                 , hDuration, 0)
           else Nothing
       else
-        return $ g (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst highestInterval)),
+        return $ correctForMinObsTime (vr^.vMaxHeight, 100, standardizeDeg (fst (vr^.vMaxHeight) - fst (fst highestInterval)),
                                  standardizeDeg (fst (snd highestInterval) - fst (vr^.vMaxHeight)))
+
+    correctForMinObsTime   :: ((Deg, HorPos), Deg, Deg, Deg) -> ((Deg, HorPos), Deg, Deg, Deg)
+    correctForMinObsTime  ((l, hp), s , tb, ta) =
+          let watchingTime = min (tb - ta) (Degrees daySiderealDayRatio * 15 * fromIntegral (ops^.oMinObsTime) /3600);
+              lst = l - (watchingTime - ta)
+              res = (lst, hor lst)
+          in if ta < watchingTime
+            then
+              (res, score (hor lst ^.hAltitude), tb - (watchingTime - ta), ta + watchingTime)
+            else
+              ((l, hp), s , tb, ta)
 
 
 tour :: ViewOps -> [Report]
@@ -390,18 +393,18 @@ tour ops =
     where
       objects = brightSkyObjects (ops^.oMag)
 
--- pretty :: TimeZone -> (UTCTime, SkyObject, HorPos, Deg, Deg, Deg) -> String
--- pretty lz (t, so, HorPos a h, score, tb, ta) =
---   printf "%s  %s\tAzi: %s\tAlt: %s\tScore: %.2f\tBefore: %s After: %s"
---     tf (description so) (printDeg a) (printDeg h)
---      (undeg score) (printDegAsTime tb) (printDegAsTime ta)
---   where
---     tf = formatTime defaultTimeLocale "%X" lt
---     lt = utcToLocalTime lz t
---
--- viewTourNow :: GeoLoc -> Float -> Rectangle -> Integer -> Double -> IO ()
--- viewTourNow g m r d score =
---   do
---     t <- getCurrentTime
---     lz <- getCurrentTimeZone
---     mapM_ (putStrLn . pretty lz)  $ tour g m r t d score
+pretty :: TimeZone -> Report -> String
+pretty lz rep =
+  printf "%s  %s\tAzi: %s\tAlt: %s\tScore: %.2f\tBefore: %s After: %s"
+    tf
+     (description (rep^.rObject)) (printDeg (rep^.rHorPos.hAzimuth)) (printDeg (rep^.rHorPos.hAltitude))
+     (rep^.rScore) (printDegAsTime (rep^.rBefore)) (printDegAsTime (rep^.rAfter))
+  where
+    tf = formatTime defaultTimeLocale "%X" lt
+    lt = utcToLocalTime lz (rep^.rTime)
+
+viewTourNow :: ViewOps -> IO ()
+viewTourNow ops =
+  do
+    lz <- getCurrentTimeZone
+    mapM_ (putStrLn . pretty lz)  $ tour ops
