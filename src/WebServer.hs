@@ -8,9 +8,12 @@ import           Control.Monad.Trans.Class        (lift)
 import           Control.Monad.Trans.Maybe
 import           Data.Angle
 import           Data.Maybe
+import           Data.String                      (fromString)
 import           Data.Text                        (Text)
 import           Data.Text.Lazy                   (pack, unpack)
 import           Data.Time
+import           Data.Time.RFC3339                (formatTimeRFC3339,
+                                                   parseTimeRFC3339)
 import           Happstack.Lite
 import           Happstack.Server.Internal.Monads (ServerPartT)
 import           HEphem.Data
@@ -30,7 +33,7 @@ main = serve Nothing myApp
 myApp :: ServerPart Response
 myApp = msum
  [
-   dir "tour" formPage
+   dir "tour" tourPage
  ]
 
 template :: Text -> Html -> Response
@@ -58,11 +61,6 @@ prettyH lz (Report so t  (HorPos az h) score tb ta) =
     tf = formatTime defaultTimeLocale "%X" lt
     lt = utcToLocalTime lz t
 
-numberInput :: Html -> H.AttributeValue -> H.AttributeValue -> H.AttributeValue -> H.AttributeValue -> Html
-numberInput l i mi ma dV = H.p $ H.tr $ do
-                   H.td $ label ! A.for i $ l
-                   H.td $ input ! type_ "number" ! A.min mi ! A.max ma ! A.id i ! name i ! A.value dV ! A.required "true"
-
 parseDeg :: forall x. Read x => String -> MaybeT (ServerPartT IO) (Degrees x)
 parseDeg s = Degrees <$> parse s
 
@@ -87,23 +85,51 @@ parseGeo =
     long <- parseDeg "long"
     return $ GeoLoc lat long
 
+parseStart :: MaybeT (ServerPartT IO) ZonedTime
+parseStart =
+  do
+    startT <- lift $ lookText "start"
+    MaybeT . pure $ parseTimeRFC3339 startT
+
 parseViewOps :: MaybeT (ServerPartT IO) ViewOps
 parseViewOps =
   do
     minMag <- parse "max_mag"
     minScore <- parse "min_score"
     hours <- parse "hours"
+    minObsTime <- parse "minObsTime"
     r <- parseRect
     geo <- parseGeo
-    t <- liftIO getCurrentTime
-    return $ ViewOps geo minMag r t (3600 * hours) 600 minScore
+    t <- parseStart
+    return $ ViewOps geo minMag r (zonedTimeToUTC t) (3600 * hours) (60 * minObsTime) minScore
 
-formPage :: ServerPart Response
-formPage = msum [ viewForm, processForm ]
+numberInput :: Html -> H.AttributeValue -> H.AttributeValue -> H.AttributeValue -> H.AttributeValue -> Html
+numberInput l i mi ma dV = H.p $ H.tr $ do
+                   H.td $ label ! A.for i $ l
+                   H.td $ input ! type_ "number"
+                                ! A.step "0.001"
+                                ! A.min mi
+                                ! A.max ma
+                                ! A.id i
+                                ! name i
+                                ! A.value dV
+                                ! A.required "true"
+
+dateTimeInput :: Html -> H.AttributeValue -> ZonedTime -> Html
+dateTimeInput l i dV = H.p $ H.tr $ do
+                   H.td $ label ! A.for i $ l
+                   H.td $ input ! type_ "datetime"
+                                ! name i
+                                ! A.value (fromString (formatTimeRFC3339 dV::String))
+                                ! A.required "true"
+
+tourPage :: ServerPart Response
+tourPage = msum [ viewForm, processForm ]
  where
    viewForm :: ServerPart Response
    viewForm =
        do method GET
+          t <- liftIO (getCurrentTime >>= utcToLocalZonedTime)
           ok $ template "tour" $ do
              H.h1 (toHtml (pack "HEphem Sky Tour Form"))
              form ! action "/tour" ! enctype "multipart/form-data" ! A.method "POST" $
@@ -115,7 +141,9 @@ formPage = msum [ viewForm, processForm ]
                  numberInput "Maximum azimuth" "max_az" "0" "360" "20"
                  numberInput "Minimum height" "min_al" "0" "90" "30"
                  numberInput "Maximum height" "max_al" "0" "90" "60"
+                 dateTimeInput "Observation start" "start" t
                  numberInput "For hours" "hours" "0" "24" "3"
+                 numberInput "Minimum Observation time (minutes)" "minObsTime" "0" "120" "15"
                  numberInput "Minimum score" "min_score" "0" "100" "80"
                  H.p $ H.tr $
                    H.td $ input ! type_ "submit" ! value "Give a tour"
@@ -124,13 +152,14 @@ formPage = msum [ viewForm, processForm ]
    processForm =
        do method POST
           mOps <- runMaybeT parseViewOps
+          guard $ isJust mOps
           tz <- liftIO getCurrentTimeZone
           let skyobjects = tour $ fromJust mOps
           ok $ template "HEphem Sky Tour" $ do
             H.h1 "HEphem Sky Tour"
             H.table $ do
               H.tr $ do
-                H.th (toHtml (pack "Local time (dutch)"))
+                H.th (toHtml (pack "Server Local time "))
                 H.th (toHtml (pack "Object"))
                 H.th (toHtml (pack "Azimuth"))
                 H.th (toHtml (pack "Height"))

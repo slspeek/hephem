@@ -10,7 +10,7 @@ name:                hephem
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.8.3
+version:             0.8.4
 
 -- A short (one-line) description of the package.
 synopsis:            Learning project calculating star positions
@@ -108,7 +108,7 @@ executable hephemserver
   -- .hs or .lhs file containing the Main module.
   main-is:             WebServer.hs
   ghc-options:         -Wall
-  -- Modules included in this executable, other than Main.
+--  -- Modules included in this executable, other than Main.
   -- other-modules:
 
   -- Other library packages from which modules are imported.
@@ -121,6 +121,7 @@ executable hephemserver
                     ,AC-Vector-Fancy == 2.4.0
                     ,AC-Angle >= 1.0
                     ,transformers == 0.4.2.0
+                    ,timerep == 2.0.0.1
                     ,happstack-lite == 7.3.6
                     ,happstack-server == 7.4.6.1
                     ,text == 1.2.1.3
