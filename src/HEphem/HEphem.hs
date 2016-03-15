@@ -18,6 +18,7 @@ import           Data.Time.Clock
 import           Data.Time.Clock.POSIX
 import           Data.Time.Format
 import           Data.Time.LocalTime
+import           Data.Tuple.HT         (fst3)
 import           Data.Vector.Class
 import           GHC.Exts
 import           HEphem.BSParser
@@ -29,8 +30,8 @@ geoAms :: GeoLoc
 geoAms = GeoLoc (fromDMS 52 21 0) (fromDMS 4 51 59)
 
 fracDays :: UTCTime -> Double
-fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u) + (fromRational
-                                                                   (toRational (utctDayTime u)) / 86400)
+fracDays u = (fromIntegral . toModifiedJulianDay) (utctDay u)
+                + (fromRational (toRational (utctDayTime u)) / 86400)
 
 ngcSkyObjects :: [SkyObject]
 ngcSkyObjects = fmap NGC ngcObjectList
@@ -207,11 +208,6 @@ intersectHeight g eq a =
     let ps = HorPos az a
     return (localSiderealtimeFromPos g eq ps, ps)
 
-helper :: [(a, Bool)] -> [(a, Bool)]
-helper l =
-   case l of [] -> []
-             h:xs -> if snd h then h:xs else xs `mappend` [h]
-
 -- Want for any SkyObject, geo, viewing rectangle
 -- * passages if any
 -- * min height and max height
@@ -254,42 +250,62 @@ data Report =
 
 makeLenses ''Report
 
+rectangleIntersections :: GeoLoc -> Rectangle -> EqPos -> [((Deg, HorPos, Direction), Bool)]
+rectangleIntersections geo r eq = trs
+  where
+    hminis = relevantMarkedIntersection intersectHeight (fst(r^.rAltitude)) DBottom
+    hmaxis = relevantMarkedIntersection intersectHeight (snd(r^.rAltitude)) DTop
+    azminis = relevantMarkedIntersection intersectAzimuth (fst(r^.rAzimuth)) DLeft
+    azmaxis = relevantMarkedIntersection intersectAzimuth (snd(r^.rAzimuth)) DRight
+
+    relevantMarkedIntersection method value marker =
+      zip (filter (viewingRestriction r . snd) $ method geo eq value) (repeat marker)
+
+    -- all marked intersections (lst, HorPos, Direction) sorted by local siderealtime
+    rs = sortWith fst3
+            ((\((x, y), z) -> (x, y, z))
+              <$> concat [hminis, hmaxis, azminis, azmaxis])
+
+    -- zip with the bool indicating entering or exiting the rectangle
+    -- by calculating a position a little later
+    trs =  helper $ zip rs (fmap (\(s,_,_) -> laterIn s) rs)
+    laterIn s = viewingRestriction r (toHorPosCoord  (s + 0.001) geo eq)
+
+    -- helper puts an exit at the end if one found at the head
+    helper :: [(a, Bool)] -> [(a, Bool)]
+    helper l =
+       case l of [] -> []
+                 h:xs -> if snd h then h:xs else xs `mappend` [h]
+
+
+
 createViewingReport :: GeoLoc -> Rectangle -> EqPos -> Maybe ViewingReport
 createViewingReport geo r eq = if noAnswer then Nothing else
                                           Just $ ViewingReport ps minh maxh
   where
-    hminis = h (fst(r^.rAltitude)) DBottom
-    hmaxis = h (snd(r^.rAltitude)) DTop
-    azminis = a (fst(r^.rAzimuth)) DLeft
-    azmaxis = a (snd(r^.rAzimuth)) DRight
+    -- No ViewingReport when there are no passages
+    -- and both lowest position and highest position lay outside the rectangle
+    noAnswer = null ps
+                && not (viewingRestriction r (lowestPos geo eq))
+                  && not (viewingRestriction r (transitPos geo eq))
 
-    h l s = zip (filter (viewingRestriction r . snd) $ intersectHeight geo eq l) (repeat s)
-    a l s = zip (filter (viewingRestriction r . snd) $ intersectAzimuth geo eq l) (repeat s)
+    is = rectangleIntersections geo r eq
+    ps = zip (fst <$> filter snd is) (fst <$> filter (not . snd) is)
 
-    rs' = sortWith (fst.fst) $  concat [hminis, hmaxis, azminis, azmaxis]
-    rs = fmap (\((x, y), z) -> (x, y, z)) rs'
-
+    inters = (\((s,hp,_), _) -> (s,hp)) <$> is
     minh =
       let lp = lowestPos geo eq in
         if viewingRestriction r lp
           then (localSiderealtimeFromPos geo eq lp, lp)
-          else minimumBy (comparing snd)
-                $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
+          else minimumBy (comparing snd) inters
 
     maxh =
       let tp = transitPos geo eq in
         if viewingRestriction r tp
           then (localSiderealtimeFromPos geo eq tp, tp)
-          else maximumBy (comparing snd)
-                $ fmap (\(s,HorPos az al,_) -> (s, HorPos az al)) rs
+          else maximumBy (comparing snd) inters
 
-    trs =  helper $ zip rs (fmap (\(s,_,_) -> laterIn s) rs)
-    testPos s = toHorPosCoord  (s + 0.001) geo eq
-    laterIn s = viewingRestriction r (testPos s)
 
-    ps = zip (fst <$> filter snd trs) (fst <$> filter (not . snd) trs)
-
-    noAnswer = null ps && not (viewingRestriction r (lowestPos geo eq)) && not (viewingRestriction r (transitPos geo eq))
 
 joinAdjacentIntervals:: [(Deg,Deg)] -> [(Deg,Deg)]
 joinAdjacentIntervals [] = []
@@ -345,7 +361,7 @@ bestPosition2 ops eq (lst0,lst1) vr = hmax
                     maxH = snd (vr^.vMaxHeight)^.hAltitude
                     in 100 * (x - minH)/ (maxH - minH)
 
-    interss = concatMap (\((x, _, _), (y, _, _)) -> intersectInterval (lst0, lst1) (x, y)) (vr^.vPassages)
+    interss = concatMap (\(x,y) -> intersectInterval (lst0, lst1) (fst3 x, fst3 y)) (vr^.vPassages)
 
     hor t = toHorPosCoord t (ops^.oGeo) eq
     borderPoss = map (\(s0, s1) -> ((s0, hor s0), (s1, hor s1))) interss

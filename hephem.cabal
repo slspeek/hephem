@@ -10,7 +10,7 @@ name:                hephem
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.8.4
+version:             0.8.5
 
 -- A short (one-line) description of the package.
 synopsis:            Learning project calculating star positions
@@ -66,6 +66,7 @@ library
       base    == 4.*
       ,containers >= 0.5.6.2
       ,file-embed >= 0.0.9
+      ,utility-ht == 0.0.11
       ,time >= 1.5.0.1
       ,gloss >= 1.9.4.1
       ,AC-Vector == 2.3.2
@@ -90,6 +91,7 @@ executable hephem
   build-depends:     base >=4.6 && <5
                     ,containers >= 0.5.6.2
                     ,file-embed >= 0.0.9
+                    ,utility-ht == 0.0.11
                     ,time >= 1.5.0.1
                     ,gloss >= 1.9.4.1
                     ,lens >= 4.13
@@ -115,6 +117,7 @@ executable hephemserver
   build-depends:     base >=4.6 && <5
                     ,containers >= 0.5.6.2
                     ,file-embed >= 0.0.9
+                    ,utility-ht == 0.0.11
                     ,time >= 1.5.0.1
                     ,lens >= 4.13
                     ,AC-Vector == 2.3.2
@@ -145,6 +148,7 @@ test-suite spec
   build-depends:     base
                      ,containers >= 0.5.6.2
                      ,file-embed >= 0.0.9
+                     ,utility-ht == 0.0.11
                      ,AC-Vector == 2.3.2
                      ,AC-Vector-Fancy == 2.4.0
                      ,AC-Angle >= 1.0

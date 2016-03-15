@@ -154,6 +154,31 @@ prop_toHorAtTransit g eq = toHorPosCoord t g eq =~ tp
     tp = transitPos g eq
     t = localSiderealtimeFromPos g eq tp
 
+isTrueFalseList :: [Bool] -> Bool
+isTrueFalseList [] = True
+isTrueFalseList (x:y:xs) =
+  x && not y && isTrueFalseList xs
+isTrueFalseList [_] = False
+
+prop_rectangleIntersectionsAlternate :: GeoLoc -> Rectangle -> EqPos -> Bool
+prop_rectangleIntersectionsAlternate geo r eq = length is `mod` 2 == 0 &&
+  isTrueFalseList (snd <$> is)
+  where
+    is = rectangleIntersections geo r eq
+
+prop_rectangleIntersectionsAlternatePoles :: GeoLoc ->  Bool
+prop_rectangleIntersectionsAlternatePoles geo@(GeoLoc fi _) =
+  and [
+        prop_rectangleIntersectionsAlternate geo rn (EqPos (p - i) 0)
+        && prop_rectangleIntersectionsAlternate geo rs (EqPos (p - i) 0)
+
+        | p <- Degrees <$> [90, -90], i <- Degrees <$> [(-10)..10]
+      ]
+  where
+    rn = Rectangle (355, 5) (fi - 5, fi + 5)
+    rs = Rectangle (175, 185) (fi - 5, fi + 5)
+
+
 spec :: SpecWith ()
 spec = describe "HEphem" $ do
   describe "siderealtime" $ do
@@ -249,3 +274,9 @@ spec = describe "HEphem" $ do
       property prop_tourGivesInRectangle
     it "gives correct positions" $
       property prop_tourGivesCorrectPositions
+
+  describe "rectangleIntersections" $ do
+    it "starts with entering and alternates with exits" $
+      property prop_rectangleIntersectionsAlternate
+    it "also around the poles" $
+      property prop_rectangleIntersectionsAlternatePoles
