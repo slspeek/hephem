@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification, TemplateHaskell, TypeSynonymInstances, FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module HEphem.Data where
 
@@ -17,7 +18,6 @@ instance Arbitrary Deg where
     do
       d <- suchThat arbitrary (\x -> x >= 0 && x <= 360)
       return $ Degrees d
-
 
 type Interval = (Deg, Deg)
 

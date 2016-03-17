@@ -26,7 +26,6 @@ import           Text.Blaze.Html5.Attributes      (action, enctype, href, name,
 import qualified Text.Blaze.Html5.Attributes      as A
 import           Text.Printf
 import           Text.Read.HT
-
 main :: IO ()
 main = serve Nothing myApp
 
@@ -44,19 +43,39 @@ template title body = toResponse $
    H.body $ do
      body
      p $ a ! href "/tour" $ "back home"
-     p $ H.h3 $ a ! href "http://github.com/slspeek/hephem" $ "HEphem source code"
+     p $ H.h3 $ a ! href "http://github.com/slspeek/hephem" $ "Copyleft 2015-2016 Steven L. Speek -- HEphem source code"
+
+skyObjectHtml :: SkyObject -> Html
+skyObjectHtml (Star s) =
+  H.html $ do
+    H.td . toHtml $ (printf "HR: %d"  (bHRNo s)::String);
+    H.td . toHtml $ case bFlamsteed s of
+      Nothing -> ""
+      Just f  -> show f
+    H.td . toHtml $ bBayer s;
+    H.td . toHtml $ bConst s;
+    H.td . toHtml $ bMag s;
+
+skyObjectHtml (NGC s) =
+    H.html $ do
+    H.td . toHtml $ (printf "NGC: %s"  (nID s)::String);
+    H.td . toHtml $ nMessier s
+    H.td . toHtml $ nType s
+    H.td . toHtml $ nClass s
+    H.td . toHtml $ nMag s
 
 prettyH :: TimeZone -> Report -> Html
-prettyH lz (Report so t  (HorPos az h) score tb ta) =
+prettyH lz (Report so t  (HorPos az h) score tb ta lst) =
    H.html $
    H.tr $ do
      H.td (toHtml tf)
-     H.td (toHtml (description so))
+     skyObjectHtml so
      H.td (toHtml (printDeg az))
      H.td (toHtml (printDeg h))
      H.td (toHtml $ pack (printf "%.2f" score))
      H.td (toHtml (printDegAsTime tb))
      H.td (toHtml (printDegAsTime ta))
+     H.td (toHtml (printDegAsTime lst))
   where
     tf = formatTime defaultTimeLocale "%X" lt
     lt = utcToLocalTime lz t
@@ -160,10 +179,15 @@ tourPage = msum [ viewForm, processForm ]
             H.table $ do
               H.tr $ do
                 H.th (toHtml (pack "Server Local time "))
-                H.th (toHtml (pack "Object"))
+                H.th (toHtml (pack "NGC/HRNO"))
+                H.th (toHtml (pack "Messier/Flamsteed"))
+                H.th (toHtml (pack "Type/Bayer"))
+                H.th (toHtml (pack "Class/Constellation"))
+                H.th (toHtml (pack "Magnitude"))
                 H.th (toHtml (pack "Azimuth"))
                 H.th (toHtml (pack "Height"))
                 H.th (toHtml (pack "Relative height %"))
                 H.th (toHtml (pack "Visible before"))
                 H.th (toHtml (pack "Visible after"))
+                H.th (toHtml (pack "Local sidereal time"))
               forM_ skyobjects (prettyH tz)

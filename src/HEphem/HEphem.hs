@@ -244,8 +244,8 @@ data Report =
   _rHorPos :: HorPos,
   _rScore  :: Double,
   _rBefore :: Deg,
-  _rAfter  :: Deg
-  -- _rLST    :: Deg
+  _rAfter  :: Deg,
+  _rLST    :: Deg
 }
 
 makeLenses ''Report
@@ -340,11 +340,12 @@ bestPosition ops so =
        ((lst, hp), score, tb, ta) <- bestPosition2 ops (equatorial so) (lst0, lst1) vr
        return $ Report
           so
-          (localSiderealtimeToUtcTime geo t lst)
-            hp
-              (undeg score)
-                (toUTCDiff tb)
-                  (toUTCDiff ta)
+            (localSiderealtimeToUtcTime geo t lst)
+              hp
+                (undeg score)
+                  (toUTCDiff tb)
+                    (toUTCDiff ta)
+                      lst
   where
     geo = ops^.oGeo
     t = ops^.oStart

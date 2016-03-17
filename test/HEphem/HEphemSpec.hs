@@ -131,7 +131,7 @@ prop_intervalRightBorder (t0, t1) = isInInterval t1 (t0, t1)
 
 prop_tourGivesInRectangle:: GeoLoc -> Rectangle -> Bool
 prop_tourGivesInRectangle geo r =
-  all (\(Report so u hp _ _ _) -> con geo u (equatorial so) hp) t
+  all (\(Report so u hp _ _ _ _) -> con geo u (equatorial so) hp) t
     where
       t = tour (ViewOps geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0 0)
       con _ _ _ hp = viewingRestriction r hp
@@ -142,7 +142,7 @@ prop_tourGivesInRectangle geo r =
 
 prop_tourGivesCorrectPositions:: GeoLoc -> Rectangle -> Bool
 prop_tourGivesCorrectPositions geo r =
-  all (\(Report so u hp _ _ _) -> con geo u (equatorial so) hp) t
+  all (\(Report so u hp _ _ _ _) -> con geo u (equatorial so) hp) t
     where
       t = tour (ViewOps geo 3 r UTCTime { utctDay = fromGregorian 2016 3 5, utctDayTime = secondsToDiffTime 0 } (3*3600) 0 0)
       con g u eq hp = let hp' = equatorialToHorizontal g u eq; in
@@ -161,8 +161,7 @@ isTrueFalseList (x:y:xs) =
 isTrueFalseList [_] = False
 
 prop_rectangleIntersectionsAlternate :: GeoLoc -> Rectangle -> EqPos -> Bool
-prop_rectangleIntersectionsAlternate geo r eq = length is `mod` 2 == 0 &&
-  isTrueFalseList (snd <$> is)
+prop_rectangleIntersectionsAlternate geo r eq = isTrueFalseList (snd <$> is)
   where
     is = rectangleIntersections geo r eq
 
